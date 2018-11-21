@@ -795,7 +795,7 @@ THREE.EXRLoader.prototype._parser = function ( buffer ) {
 
 	function parseUlong( dataView, offset ) {
 
-		var uLong = dataView.getUint32( 0, true );
+		var uLong = dataView.getUint32(offset.value+1, true);
 
 		offset.value = offset.value + ULONG_SIZE;
 
@@ -1022,7 +1022,6 @@ THREE.EXRLoader.prototype._parser = function ( buffer ) {
 	}
 
 	var bufferDataView = new DataView(buffer);
-	var uInt8Array = new Uint8Array(buffer);
 
 	var EXRHeader = {};
 
@@ -1062,17 +1061,17 @@ THREE.EXRLoader.prototype._parser = function ( buffer ) {
 	var scanlineBlockSize = 1; // 1 for NO_COMPRESSION
 
 	if ( EXRHeader.compression === 'PIZ_COMPRESSION' ) {
-
 		scanlineBlockSize = 32;
-
+	}
+	else if ( EXRHeader.compression === 'ZIP_COMPRESSION' ) {
+		scanlineBlockSize = 16;
 	}
 
 	var numBlocks = dataWindowHeight / scanlineBlockSize;
-
+	var scanlineOffsets = [];
 	for ( var i = 0; i < numBlocks; i ++ ) {
-
 		var scanlineOffset = parseUlong( bufferDataView, offset );
-
+		scanlineOffsets.push( scanlineOffset );
 	}
 
 	// we should be passed the scanline offset table, start reading pixel data
@@ -1089,6 +1088,38 @@ THREE.EXRLoader.prototype._parser = function ( buffer ) {
 		B: 2,
 		A: 3
 	};
+
+/*	if ( EXRHeader.compression === 'ZIP_COMPRESSION' ) {
+		var uInt8Array = pako.inflateRaw(new Uint8Array(buffer, offset));
+
+/ *		var compressedBlob = new Blob([bufferDataView]).slice(offset.value);
+		var uncompressedBlob = null;
+		zip.createReader(new zip.BlobReader(compressedBlob), function(zipReader) {
+			zipReader.getEntry(function(entry) {
+			entry.getData(new zip.BlobWriter(''), function(data) {
+				uncompressedBlob = data;
+				zipReader.close();
+			});
+			});
+		}, function(message) {
+			throw message;
+		});
+		
+		if (uncompressedBlob !== null) {
+			var fileReader = new FileReaderSync();
+			buffer = fileReader.readAsArrayBuffer(uncompressedBlob);
+			bufferDataView = new DataView(buffer);
+			offset.value = 0;
+			EXRHeader.compression = 'NO_COMPRESSION';
+		}* /
+		if (uInt8Array !== null) {
+			bufferDataView = new DataView(uInt8Array);
+			offset.value = 0;
+			EXRHeader.compression = 'NO_COMPRESSION';
+		}
+		else
+			throw 'EXRLoader._parser: zip inflate failed for unknown reason';
+	}*/
 
 	if ( EXRHeader.compression === 'NO_COMPRESSION' ) {
 
@@ -1124,6 +1155,8 @@ THREE.EXRLoader.prototype._parser = function ( buffer ) {
 
 	} else if ( EXRHeader.compression === 'PIZ_COMPRESSION' ) {
 
+		var uInt8Array = new Uint8Array(buffer);
+
 		for ( var scanlineBlockIdx = 0; scanlineBlockIdx < height / scanlineBlockSize; scanlineBlockIdx ++ ) {
 
 			var line_no = parseUint32( bufferDataView, offset );
@@ -1157,6 +1190,77 @@ THREE.EXRLoader.prototype._parser = function ( buffer ) {
 					} else {
 
 						throw 'EXRLoader._parser: unsupported pixelType ' + EXRHeader.channels[ channelID ].pixelType + '. Only pixelType is 1 (HALF) is supported.';
+
+					}
+
+				}
+
+			}
+
+		}
+
+	} else if ( EXRHeader.compression === 'ZIP_COMPRESSION' ) {
+
+		for ( var scanlineBlockIdx = 0; scanlineBlockIdx < height / scanlineBlockSize; scanlineBlockIdx ++ ) {
+
+//			offset.value = scanlineOffsets[scanlineBlockIdx];
+			var line_no = parseUint32( bufferDataView, offset );
+			var compressed_len = parseUint32( bufferDataView, offset );
+
+			var uInt8Array = pako.inflate(new Uint8Array(buffer, offset.value, compressed_len));
+			offset.value += compressed_len;
+
+			var data_len = uInt8Array.length;
+			// OpenEXR predictor
+			for (var i = 1; i < data_len; i++) {
+				uInt8Array[i] = uInt8Array[i-1] + uInt8Array[i] - 128;
+			}
+			var tmpBuffer = new Uint8Array(data_len);
+			var data_split = Math.floor((data_len + 1) / 2);
+			for (var i = 0; 2*i < data_len; i++)
+				tmpBuffer[2*i] = uInt8Array[i];
+			for (var i = 0; 2*i+1 < data_len; i++)
+				tmpBuffer[2*i+1] = uInt8Array[data_split+i];
+
+			var tmpBufferH = new Uint16Array( tmpBuffer.buffer );
+			var tmpBufferF = new Float32Array( tmpBuffer.buffer );
+			var tmpOffset = { value: 0 };
+
+			for ( var line_y = 0; line_y < scanlineBlockSize; line_y ++ ) {
+
+				for ( var channelID = 0; channelID < EXRHeader.channels.length; channelID ++ ) {
+
+					var cOff = channelOffsets[ EXRHeader.channels[ channelID ].name ];
+
+					if ( EXRHeader.channels[ channelID ].pixelType === 1 ) {
+
+						// HALF
+						for ( var x = 0; x < width; x ++ ) {
+
+							var val = decodeFloat16( tmpBufferH[ ( channelID * width ) + ( line_y * width * numChannels ) + x ] );
+
+							var true_y = line_y + ( scanlineBlockIdx * scanlineBlockSize );
+
+							byteArray[ ( ( ( height - true_y ) * ( width * numChannels ) ) + ( x * numChannels ) ) + cOff ] = val;
+
+						}
+
+					} else if ( EXRHeader.channels[ channelID ].pixelType === 2 ) {
+
+						// FLOAT
+						for ( var x = 0; x < width; x ++ ) {
+
+							var val = tmpBufferF[ ( channelID * width ) + ( line_y * width * numChannels ) + x ];
+
+							var true_y = line_y + ( scanlineBlockIdx * scanlineBlockSize );
+
+							byteArray[ ( ( ( height - true_y ) * ( width * numChannels ) ) + ( x * numChannels ) ) + cOff ] = val;
+
+						}
+
+					} else {
+
+						throw 'EXRLoader._parser: unsupported pixelType ' + EXRHeader.channels[ channelID ].pixelType + '. Only pixelType is 1 (HALF) and 2 (FLOAT) is supported.';
 
 					}
 

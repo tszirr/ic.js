@@ -41,6 +41,7 @@
 		<script src="three.min.js"></script>
 		<script src="dat.gui.min.js"></script>
 		
+		<script src="pako_inflate.min.js"></script>
 		<script src="EXRLoader.js"></script>
 
 		<script>
@@ -80,13 +81,14 @@
 
 		<script>
 			var renderer, scene, camera, quad;
-			var inputTextures = [];
+			var inputImages = [];
 			var outputTexture;
 			var rwMaterial, rwUniforms = {};
 			var emptyMaterial, passMaterial, passUniforms = {
 				offset: { },
 				size: { value: new THREE.Vector2(512, 512) },
 				exposure: { },
+				picture: { },
 			};
 			init();
 			var gui = new UiParameters();
@@ -123,18 +125,38 @@
 				renderer.setSize( window.innerWidth, window.innerHeight );
 			}
 			//
+			var exrLoader = new THREE.EXRLoader();
+			function FileImage(fileName) {
+				var scope = this;
+				this.file = fileName;
+				this.texture = null;
+				this.load = function(data) {
+					exrLoader.load( data, function ( texture, textureData ) {
+						texture.minFilter = THREE.NearestFilter;
+						texture.magFilter = THREE.NearestFilter;
+						texture.generateMipmaps = false;
+						scope.texture = texture;
+					});
+				};
+			}
 			function UiParameters() {
 				this.gui = new dat.GUI();
 				this.exposure = 1;
 				this.gui.add(this, 'exposure', -2, 3);
 
 				var handleFileSelect = function(evt) {
-					if (evt.target.files.size < 1)
+					if (evt.target.files.length < 1)
 						return;
-					var files = [];
+					var newInputs = [];
 					for (var fileName of evt.target.files) {
+						var img = new FileImage(fileName);
+						newInputs.push(img);
+
 						var reader = new FileReader();
+						reader.onload = function(evt) { img.load(evt.target.result); }
+						reader.readAsDataURL(fileName);
 					}
+					inputImages = newInputs;
 				};
 				document.getElementById('input-button').addEventListener('change', handleFileSelect, false);
 			}
@@ -179,10 +201,14 @@
 				renderer.render(scene, camera);
 				renderer.autoClear = false;
 
-				quad.material = passMaterial;
-				passUniforms.exposure.value = Math.pow(10, gui.exposure-1);
-				passUniforms.offset.value = new THREE.Vector2(windowHalfX, windowHalfY).addScaledVector(passUniforms.size.value, -.5);
-				renderer.render(scene, camera);
+				if (inputImages.length > 0 && inputImages[0].texture) {
+					quad.material = passMaterial;
+					passUniforms.exposure.value = Math.pow(10, gui.exposure-1);
+					passUniforms.picture.value = inputImages[0].texture;
+					passUniforms.size.value = new THREE.Vector2(passUniforms.picture.value.image.width, passUniforms.picture.value.image.height);
+					passUniforms.offset.value = new THREE.Vector2(windowHalfX, windowHalfY).addScaledVector(passUniforms.size.value, -.5);
+					renderer.render(scene, camera);
+				}
 			}
 		</script>
 	</body>
