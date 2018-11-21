@@ -127,11 +127,12 @@
 			//
 			var exrLoader = new THREE.EXRLoader();
 			function FileImage(fileName) {
-				var scope = this;
 				this.file = fileName;
 				this.texture = null;
 				this.load = function(data) {
+					var scope = this;
 					exrLoader.load( data, function ( texture, textureData ) {
+						console.log(scope.file);
 						texture.minFilter = THREE.NearestFilter;
 						texture.magFilter = THREE.NearestFilter;
 						texture.generateMipmaps = false;
@@ -153,7 +154,7 @@
 						newInputs.push(img);
 
 						var reader = new FileReader();
-						reader.onload = function(evt) { img.load(evt.target.result); }
+						reader.onload = function() { var scope = img; return function(evt) { scope.load(evt.target.result); }; }();
 						reader.readAsDataURL(fileName);
 					}
 					inputImages = newInputs;
