@@ -9,7 +9,6 @@ void main() {
     if (c.x < 0. || c.y < 0. || c.x >= size.x || c.y >= size.y)
         discard;
 
-    gl_FragColor = texture2D(picture, c/size);
+    gl_FragColor = texture2D(picture, c/size, 0.);
     gl_FragColor.xyz *= exposure;
-//    gl_FragColor = vec4(c/size * exposure, 0, 1);
 }

@@ -12,7 +12,7 @@
 			}
 			#info {
 				position: absolute;
-				top: 10px; width: 100%;
+				top: 10px; width: 60%;
 				color: #ffffff;
 				padding: 5px;
 				font-family: Monospace;
@@ -53,6 +53,35 @@
 				if (sceneParam)
 					sceneName = sceneParam;
 			}
+			// input sorting
+			var collator = new Intl.Collator(undefined, {numeric: true, sensitivity: 'base'});
+			function arrayCompare(a, b) {
+				if (a.length < b.length)
+					return -1;
+				else if (a.length > b.length)
+					return 1;
+				for (var i = 0; i < a.length; ++i)
+					if (a[i] != b[i])
+						return a[i] - b[i];
+				return 0;
+			}
+			function sortInputs(inputs, getName) {
+				if (inputs.length < 1)
+					return inputs;
+				var alnum = Array.from(inputs);
+				alnum.sort( function(a, b) { return collator.compare(getName(a), getName(b)); } );
+				var numbered = alnum.map( x => [getName(x).match(/\d+/g), x] );
+				numbered.sort( function(a, b) { return arrayCompare(a[0], b[0]); } );
+				var sppNumIdx = Math.max(0, numbered[0][0].length-1);
+				var cascadeNumIdx = Math.max(sppNumIdx+1, numbered[numbered.length-1][0].length-1);
+				return numbered.map( function(a) {
+					if (sppNumIdx < a[0].length)
+						a[1].spp = a[0][sppNumIdx];
+					if (cascadeNumIdx < a[0].length)
+						a[1].cascadeIdx = a[0][cascadeNumIdx];
+					return a[1];
+				});
+			}
 		</script>
 
 		<script src="fullscreen.vs" type="x-shader/x-vertex" id="vertex-shader"></script>
@@ -82,11 +111,23 @@
 		<script>
 			var renderer, scene, camera, quad;
 			var inputImages = [];
-			var outputTexture;
-			var rwMaterial, rwUniforms = {};
+			var outputTexture, outputBuffer;
+			var rwMaterial, rwUniforms = {
+				cropOffset: { },
+				size: { },
+				picture: { },
+				hasPicture: { },
+				hasMore: { },
+				prev: { },
+				curr: { },
+				next: { },
+				oneOverK: { },
+				currScale: { },
+				cascadeBase: { },
+			};
 			var emptyMaterial, passMaterial, passUniforms = {
 				offset: { },
-				size: { value: new THREE.Vector2(512, 512) },
+				size: { },
 				exposure: { },
 				picture: { },
 			};
@@ -143,7 +184,18 @@
 			function UiParameters() {
 				this.gui = new dat.GUI();
 				this.exposure = 1;
-				this.gui.add(this, 'exposure', -2, 3);
+				this.gui.add(this, 'exposure', -2, 3).listen();;
+
+				this.kappa = 32;
+				this.spp = 1024;
+				this.cascadeBase = 8;
+				this.cascadeStart = 1;
+				this.gui.add(this, 'kappa', 1, 128).listen();;
+				this.gui.add(this, 'spp', 32, 4096).listen();;
+				this.gui.add(this, 'cascadeBase', 1, 8).listen();;
+				this.gui.add(this, 'cascadeStart', .125, 4).listen();;
+
+				var scope = this;
 
 				var handleFileSelect = function(evt) {
 					if (evt.target.files.length < 1)
@@ -157,7 +209,12 @@
 						reader.onload = function() { var scope = img; return function(evt) { scope.load(evt.target.result); }; }();
 						reader.readAsDataURL(fileName);
 					}
+					newInputs = sortInputs(newInputs, function(a) { return a.file.name; });
 					inputImages = newInputs;
+					if (inputImages[0].spp) {
+						scope.spp = inputImages[0].spp;
+						console.log('detected ' + scope.spp + 'spp');
+					}
 				};
 				document.getElementById('input-button').addEventListener('change', handleFileSelect, false);
 			}
@@ -196,6 +253,25 @@
 
 				window.setTimeout(animate, 1000 / 8);
 			}
+			function outputFor(texture) {
+				var parameters = {
+					format: THREE.RGBAFormat,
+					minFilter: THREE.NearestFilter,
+					magFilter: THREE.NearestFilter,
+					depthBuffer: false,
+					stencilBuffer: false
+				};
+				renderTarget = new THREE.WebGLRenderTarget( texture.image.width, texture.image.height, parameters );
+				return renderTarget;
+			}
+			function updateOutputFor(texture, renderTarget) {
+				if (renderTarget != null && renderTarget.width == texture.image.width && renderTarget.height == texture.image.height)
+					return renderTarget;
+				else {
+					console.log('Updating render target');
+					return outputFor(texture);
+				}
+			}
 			function render() {
 				renderer.autoClear = true;
 				quad.material = emptyMaterial;
@@ -203,11 +279,44 @@
 				renderer.autoClear = false;
 
 				if (inputImages.length > 0 && inputImages[0].texture) {
+					outputTexture = updateOutputFor(inputImages[0].texture, outputTexture);
+					outputBuffer = updateOutputFor(inputImages[0].texture, outputBuffer);
+					var outputSize = new THREE.Vector2(outputTexture.width, outputTexture.height);
+
+					quad.material = rwMaterial;
+					var passCount = 0;
+					var currScale = gui.cascadeStart;
+					for (var image of inputImages) {
+						if (image.texture) {
+							var inputSize = new THREE.Vector2(image.texture.image.width, image.texture.image.height);
+							rwUniforms.cropOffset.value = outputSize.clone().sub(inputSize).multiplyScalar(.5);
+							rwUniforms.size.value = inputSize;
+							rwUniforms.picture.value = outputTexture.texture;
+							rwUniforms.hasPicture.value = (passCount > 0);
+							rwUniforms.hasMore.value = (passCount+1 < inputImages.length);
+							rwUniforms.prev.value = rwUniforms.hasPicture.value ? inputImages[passCount-1].texture : null;
+							rwUniforms.curr.value = image.texture;
+							rwUniforms.next.value = rwUniforms.hasMore.value ? inputImages[passCount+1].texture : null;
+							rwUniforms.oneOverK.value = 1 / gui.kappa;
+							rwUniforms.currScale.value = gui.spp / currScale / gui.kappa;
+							rwUniforms.cascadeBase.value = gui.cascadeBase;
+
+							renderer.render(scene, camera, outputBuffer, true);
+							
+							var ob = outputTexture;
+							outputTexture = outputBuffer;
+							outputBuffer = ob;
+						}
+
+						passCount++;
+						currScale *= gui.cascadeBase;
+					}
+					
 					quad.material = passMaterial;
 					passUniforms.exposure.value = Math.pow(10, gui.exposure-1);
-					passUniforms.picture.value = inputImages[0].texture;
-					passUniforms.size.value = new THREE.Vector2(passUniforms.picture.value.image.width, passUniforms.picture.value.image.height);
-					passUniforms.offset.value = new THREE.Vector2(windowHalfX, windowHalfY).addScaledVector(passUniforms.size.value, -.5);
+					passUniforms.picture.value = outputTexture.texture;
+					passUniforms.size.value = outputSize;
+					passUniforms.offset.value = new THREE.Vector2(windowHalfX, windowHalfY).addScaledVector(outputSize, -.5);
 					renderer.render(scene, camera);
 				}
 			}
