@@ -1068,10 +1068,8 @@ THREE.EXRLoader.prototype._parser = function ( buffer ) {
 	}
 
 	var numBlocks = dataWindowHeight / scanlineBlockSize;
-	var scanlineOffsets = [];
 	for ( var i = 0; i < numBlocks; i ++ ) {
 		var scanlineOffset = parseUlong( bufferDataView, offset );
-		scanlineOffsets.push( scanlineOffset );
 	}
 
 	// we should be passed the scanline offset table, start reading pixel data
@@ -1088,38 +1086,6 @@ THREE.EXRLoader.prototype._parser = function ( buffer ) {
 		B: 2,
 		A: 3
 	};
-
-/*	if ( EXRHeader.compression === 'ZIP_COMPRESSION' ) {
-		var uInt8Array = pako.inflateRaw(new Uint8Array(buffer, offset));
-
-/ *		var compressedBlob = new Blob([bufferDataView]).slice(offset.value);
-		var uncompressedBlob = null;
-		zip.createReader(new zip.BlobReader(compressedBlob), function(zipReader) {
-			zipReader.getEntry(function(entry) {
-			entry.getData(new zip.BlobWriter(''), function(data) {
-				uncompressedBlob = data;
-				zipReader.close();
-			});
-			});
-		}, function(message) {
-			throw message;
-		});
-		
-		if (uncompressedBlob !== null) {
-			var fileReader = new FileReaderSync();
-			buffer = fileReader.readAsArrayBuffer(uncompressedBlob);
-			bufferDataView = new DataView(buffer);
-			offset.value = 0;
-			EXRHeader.compression = 'NO_COMPRESSION';
-		}* /
-		if (uInt8Array !== null) {
-			bufferDataView = new DataView(uInt8Array);
-			offset.value = 0;
-			EXRHeader.compression = 'NO_COMPRESSION';
-		}
-		else
-			throw 'EXRLoader._parser: zip inflate failed for unknown reason';
-	}*/
 
 	if ( EXRHeader.compression === 'NO_COMPRESSION' ) {
 
@@ -1203,7 +1169,6 @@ THREE.EXRLoader.prototype._parser = function ( buffer ) {
 
 		for ( var scanlineBlockIdx = 0; scanlineBlockIdx < height / scanlineBlockSize; scanlineBlockIdx ++ ) {
 
-//			offset.value = scanlineOffsets[scanlineBlockIdx];
 			var line_no = parseUint32( bufferDataView, offset );
 			var compressed_len = parseUint32( bufferDataView, offset );
 
@@ -1224,7 +1189,6 @@ THREE.EXRLoader.prototype._parser = function ( buffer ) {
 
 			var tmpBufferH = new Uint16Array( tmpBuffer.buffer );
 			var tmpBufferF = new Float32Array( tmpBuffer.buffer );
-			var tmpOffset = { value: 0 };
 
 			for ( var line_y = 0; line_y < scanlineBlockSize; line_y ++ ) {
 
