@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<title>Reweighted Monte Carlo</title>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+		<style>
+			body {
+				background-color: #000000;
+				margin: 0px;
+				overflow: hidden;
+			}
+			#info {
+				position: absolute;
+				top: 10px; width: 100%;
+				color: #ffffff;
+				padding: 5px;
+				font-family: Monospace;
+				font-size: 13px;
+				text-align: center;
+				z-index:100;
+			}
+			a {
+				color: orange;
+				text-decoration: none;
+			}
+			a:hover {
+				color: #0080ff;
+			}
+		</style>
+	</head>
+	<body>
+
+		<div id="info">
+			<a href="http://threejs.org" target="_blank" rel="noopener">three.js</a> - Reweighted Monte Carlo
+			<input id="input-button" type="file" multiple="true">
+			[<span id="info-output"></span>]
+			<pre id="print-output"></pre>
+		</div>
+
+		<script src="three.min.js"></script>
+		<script src="dat.gui.min.js"></script>
+		
+		<script src="EXRLoader.js"></script>
+
+		<script>
+			var sceneName = 'bathroom/proc.dbg.2048.regular.exr';
+			{
+				var urlParams = new URLSearchParams(document.location.search);
+				console.log(document.location.href)
+				var sceneParam = urlParams.get('scene');
+				if (sceneParam)
+					sceneName = sceneParam;
+			}
+		</script>
+
+		<script src="fullscreen.vs" type="x-shader/x-vertex" id="vertex-shader"></script>
+		<script src="reweight.fs" type="x-shader/x-fragment" id="reweighting-shader"></script>
+		<script src="passpart.fs" type="x-shader/x-fragment" id="passpart-shader"></script>
+		<script src="empty.fs" type="x-shader/x-fragment" id="empty-shader"></script>
+
+		<script>
+			function loadScript(script) {
+				var xhrObj = new XMLHttpRequest();
+				xhrObj.overrideMimeType(script.type);
+				xhrObj.open('GET', script.src, false);
+				xhrObj.send();
+				return xhrObj.responseText;
+			}
+			var defaultVertexShader = loadScript(document.getElementById('vertex-shader'));
+			function loadShader(id, uniformMap) {
+				var shader = {
+						uniforms: uniformMap,
+						vertexShader: defaultVertexShader,
+						fragmentShader: loadScript(document.getElementById(id))
+					};
+				return shader;
+			}
+		</script>
+
+		<script>
+			var renderer, scene, camera, quad;
+			var inputTextures = [];
+			var outputTexture;
+			var rwMaterial, rwUniforms = {};
+			var emptyMaterial, passMaterial, passUniforms = {
+				offset: { },
+				size: { value: new THREE.Vector2(512, 512) },
+				exposure: { },
+			};
+			init();
+			var gui = new UiParameters();
+			animate();
+			function init() {
+				renderer = new THREE.WebGLRenderer( { antialias: false, depth: false, stencil: false } );
+				renderer.gammaOutput = true;
+				renderer.setPixelRatio( window.devicePixelRatio );
+				//
+				window.addEventListener( 'resize', onWindowResize, false );
+				onWindowResize();
+				document.body.appendChild( renderer.domElement );
+				//
+				scene = new THREE.Scene();
+				camera = new THREE.OrthographicCamera( - 1, 1, 1, - 1, 0, 1 );
+				scene.add( camera );
+				quad = new THREE.Mesh( new THREE.PlaneBufferGeometry( 2, 2 ), null );
+				quad.frustumCulled = false;
+				scene.add( quad );
+				//
+				infotext = '';
+				rwMaterial = new THREE.ShaderMaterial( loadShader('reweighting-shader', rwUniforms) );
+				emptyMaterial = new THREE.ShaderMaterial( loadShader('empty-shader', {}) );
+				passMaterial = new THREE.ShaderMaterial( loadShader('passpart-shader', passUniforms) );
+				//
+				document.getElementById( 'info-output' ).innerHTML = infotext;
+			}
+			//
+			var windowHalfX = window.innerWidth / 2;
+			var windowHalfY = window.innerHeight / 2;
+			function onWindowResize() {
+				windowHalfX = window.innerWidth / 2;
+				windowHalfY = window.innerHeight / 2;
+				renderer.setSize( window.innerWidth, window.innerHeight );
+			}
+			//
+			function UiParameters() {
+				this.gui = new dat.GUI();
+				this.exposure = 1;
+				this.gui.add(this, 'exposure', -2, 3);
+
+				var handleFileSelect = function(evt) {
+					if (evt.target.files.size < 1)
+						return;
+					var files = [];
+					for (var fileName of evt.target.files) {
+						var reader = new FileReader();
+					}
+				};
+				document.getElementById('input-button').addEventListener('change', handleFileSelect, false);
+			}
+/*			//
+			function onDocumentMouseMove( event ) {
+				mouseX = event.clientX - windowHalfX;
+				mouseY = event.clientY - windowHalfY;
+			}
+			function onDocumentTouchStart( event ) {
+				if ( event.touches.length > 1 ) {
+					event.preventDefault();
+					mouseX = event.touches[ 0 ].pageX - windowHalfX;
+					mouseY = event.touches[ 0 ].pageY - windowHalfY;
+				}
+			}
+			function onDocumentTouchMove( event ) {
+				if ( event.touches.length == 1 ) {
+					event.preventDefault();
+					mouseX = event.touches[ 0 ].pageX - windowHalfX;
+					mouseY = event.touches[ 0 ].pageY - windowHalfY;
+				}
+			}
+			//
+*/			var prevTime = null;
+			function animate() {
+//				requestAnimationFrame( animate );
+				
+				var time = performance.now();
+				if (!prevTime)
+					prevTime = time;
+				var delta = ( time - prevTime ) / 1000;
+				
+				render();
+
+				prevTime = time;
+
+				window.setTimeout(animate, 1000 / 8);
+			}
+			function render() {
+				renderer.autoClear = true;
+				quad.material = emptyMaterial;
+				renderer.render(scene, camera);
+				renderer.autoClear = false;
+
+				quad.material = passMaterial;
+				passUniforms.exposure.value = Math.pow(10, gui.exposure-1);
+				passUniforms.offset.value = new THREE.Vector2(windowHalfX, windowHalfY).addScaledVector(passUniforms.size.value, -.5);
+				renderer.render(scene, camera);
+			}
+		</script>
+	</body>
+</html>

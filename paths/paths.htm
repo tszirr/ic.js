@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<title>three.js webgl - Path Visualizer</title>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+		<style>
+			body {
+				background-color: #000000;
+				margin: 0px;
+				overflow: hidden;
+			}
+			#info {
+				position: absolute;
+				top: 10px; width: 100%;
+				color: #ffffff;
+				padding: 5px;
+				font-family: Monospace;
+				font-size: 13px;
+				text-align: center;
+				z-index:100;
+			}
+			a {
+				color: orange;
+				text-decoration: none;
+			}
+			a:hover {
+				color: #0080ff;
+			}
+		</style>
+	</head>
+	<body>
+
+		<div id="info">
+			<a href="http://threejs.org" target="_blank" rel="noopener">three.js</a> - path visualizer
+			[<span id="info-output"></span>]
+			<pre id="print-output"></pre>
+		</div>
+
+		<script src="three.min.js"></script>
+		<script src="dat.gui.min.js"></script>
+		<script src="PointerLockControls.js"></script>
+		<script src="FirstPersonControls.js"></script>
+
+		<script>
+			var sceneName = 'flashlight1k';
+			{
+				var urlParams = new URLSearchParams(document.location.search);
+				console.log(document.location.href)
+				var sceneParam = urlParams.get('scene');
+				if (sceneParam)
+					sceneName = sceneParam;
+			}
+			function loadNumArray(src) {
+				var req = new XMLHttpRequest();
+				req.open('GET', src, false);
+				req.send();
+				return req.responseText.split(',').map(Number);
+			}
+			var mltpaths_strat = loadNumArray(sceneName + '/mltpaths_strat.txt');
+			var mltpaths = loadNumArray(sceneName + '/mltpaths_unstrat.txt');
+		</script>
+		
+		<script>
+			var defaultCamera = new THREE.Matrix4();
+			defaultCamera.elements = [0.23458956247506524,3.3306690738754696e-16,0.9720945104143697,0,0.32234743115428305,0.9434197537592761,-0.0777901140571301,0,-0.9170931636458686,0.3316009170928008,0.22131642726472245,0,0,0,1]; // -172.32319001911085,76.49854249991395,30.65932141129824
+		</script>
+
+		<script>
+			var camera, scenes, renderer;
+			var cameraControl;
+			var pathMaterial;
+			init();
+			var gui = new UiParameters();
+			animate();
+			function init() {
+				camera = new THREE.PerspectiveCamera( 33, 1, 1, 10000 );
+				camera.applyMatrix(defaultCamera);
+				//
+				renderer = new THREE.WebGLRenderer( { antialias: false, depth: false, stencil: false } );
+				renderer.gammaOutput = true;
+				renderer.setPixelRatio( window.devicePixelRatio );
+				//
+				window.addEventListener( 'resize', onWindowResize, false );
+				onWindowResize();
+				document.body.appendChild( renderer.domElement );
+				//
+				pathMaterial = new THREE.LineBasicMaterial( { vertexColors: THREE.VertexColors, blending: THREE.AdditiveBlending } );
+				//
+				var infotext = ' ';
+				scenes = [];
+				for (let paths of [mltpaths, mltpaths_strat]) {
+					var vertices = [];
+					var colors = [];
+					
+					var cursor = 0
+					var pathCount = 0, pathsUsed = 0
+					while (cursor < paths.length) {
+						var color = [ paths[cursor++], paths[cursor++], paths[cursor++] ]
+						var vc = paths[cursor++]
+						var usePath = (pathCount++ % 5 == 0)
+						pathsUsed += usePath
+						for (var i = 0; i < vc; i++) {
+							var x = paths[cursor++];
+							var y = paths[cursor++];
+							var z = paths[cursor++];
+							if (usePath) {
+								if (i > 0 && i < vc-1)
+									vertices.push( y,z,x );
+								vertices.push( y,z,x );
+
+								if (i > 0 && i < vc-1)
+									colors.push( color[0], color[1], color[2] );
+								if (i == vc-1 || i == 0 && x*x+y*y+z*z > 100*100)
+									colors.push( 0, 0, 0 );
+								else if (i == vc-2)
+									colors.push( color[0]*.1, color[1]*.1, color[2]*.1 );
+								else
+									colors.push( color[0], color[1], color[2] );
+							}
+						}
+					}
+					infotext += pathsUsed + ' paths; '
+					
+					{
+						var vc = paths[3];
+						var x = paths[4+vc*3-3];
+						var y = paths[4+vc*3-2];
+						var z = paths[4+vc*3-1];
+						camera.position.set(y,z,x);
+						var x = paths[4+vc*3-6];
+						var y = paths[4+vc*3-5];
+						var z = paths[4+vc*3-4];
+						camera.lookAt(y,z,x);
+					}
+					
+/*					var x = 0, y = 0, z = 0;
+					for (var i = 0; i < vertices.length; i+=3) {
+						x += vertices[i];
+						y += vertices[i+1];
+						z += vertices[i+2];
+					}
+					infotext += 3 * x / vertices.length + ', ' + 3 * y / vertices.length + ', ' + 3 * z / vertices.length + '; ';
+*/					
+					var geometry1 = new THREE.BufferGeometry();
+					geometry1.addAttribute( 'position', new THREE.Float32BufferAttribute( vertices, 3 ) );
+					geometry1.addAttribute( 'color', new THREE.Float32BufferAttribute( colors, 3 ) );
+					var line = new THREE.LineSegments( geometry1, pathMaterial );
+					
+					var scene = new THREE.Scene();
+					scene.add( line );
+					scene.add( camera );
+					scenes.push(scene);
+				}
+				document.getElementById( 'info-output' ).innerHTML = infotext;
+				//
+				var plc = new THREE.PointerLockControls( camera, renderer.domElement );
+				cameraControl = new THREE.FirstPersonControls( plc );
+			}
+			//
+			var windowHalfX = window.innerWidth / 2;
+			var windowHalfY = window.innerHeight / 2;
+			function onWindowResize() {
+				windowHalfX = window.innerWidth / 2;
+				windowHalfY = window.innerHeight / 2;
+				camera.aspect = windowHalfX / window.innerHeight;
+				camera.updateProjectionMatrix();
+				renderer.setSize( window.innerWidth, window.innerHeight );
+			}
+			//
+			function UiParameters() {
+				this.gui = new dat.GUI();
+				this.gui.add(cameraControl, 'baseVelocity', .01, 500);
+				this.brightness = -2;
+				this.gui.add(this, 'brightness', -5, 2);
+			}
+/*			//
+			function onDocumentMouseMove( event ) {
+				mouseX = event.clientX - windowHalfX;
+				mouseY = event.clientY - windowHalfY;
+			}
+			function onDocumentTouchStart( event ) {
+				if ( event.touches.length > 1 ) {
+					event.preventDefault();
+					mouseX = event.touches[ 0 ].pageX - windowHalfX;
+					mouseY = event.touches[ 0 ].pageY - windowHalfY;
+				}
+			}
+			function onDocumentTouchMove( event ) {
+				if ( event.touches.length == 1 ) {
+					event.preventDefault();
+					mouseX = event.touches[ 0 ].pageX - windowHalfX;
+					mouseY = event.touches[ 0 ].pageY - windowHalfY;
+				}
+			}
+			//
+*/			var prevTime = null;
+			function animate() {
+				requestAnimationFrame( animate );
+				
+				var time = performance.now();
+				if (!prevTime)
+					prevTime = time;
+				var delta = ( time - prevTime ) / 1000;
+				
+				cameraControl.update(delta);
+				render();
+
+				prevTime = time;
+			}
+			function render() {				
+				var i = 0;
+				pathMaterial.color.setScalar( Math.pow(10, gui.brightness) );
+				for (let scene of scenes) {
+					var left = windowHalfX * i++;
+					var top = 0;
+					renderer.setViewport( left, top, windowHalfX, 2 * windowHalfY );
+					renderer.setScissor( left, top, windowHalfX, 2 * windowHalfY );
+					renderer.setScissorTest( true );
+					renderer.render( scene, camera );
+				}
+			}
+		</script>
+	</body>
+</html>
