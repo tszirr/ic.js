@@ -52,13 +52,24 @@
 		<script src="EXRLoader.js"></script>
 
 		<script>
-			var sceneName = 'bathroom/proc.dbg.2048.regular.exr';
+			function completeInputs(basename, cascadeBase, cascasdeStart, cascadeSize) {
+				var inputs = [ basename + '.regular.exr' ];
+				for (var i = 0, b = cascasdeStart * cascadeBase; i < cascadeSize; i++, b *= cascadeBase) {
+					inputs.push( basename + '.min' + b + '.exr' );
+				}
+				return inputs;
+			}
+			var defaultCascadeBase = 8;
+			var urlInputs = [];
+			var exampleScenes = [ 'bathroom', completeInputs('bathroom/proc.dbg.2048', 8, 1, 6) ];
 			{
 				var urlParams = new URLSearchParams(document.location.search);
 				console.log(document.location.href)
-				var sceneParam = urlParams.get('scene');
-				if (sceneParam)
-					sceneName = sceneParam;
+				var param;
+				if (param = urlParams.get('cascadeBase'))
+					defaultCascadeBase = param;
+				if (param = urlParams.get('inputs-basename'))
+					urlInputs = completeInputs(param, defaultCascadeBase, 1, 6);
 			}
 			// input sorting
 			var collator = new Intl.Collator(undefined, {numeric: true, sensitivity: 'base'});
@@ -191,6 +202,33 @@
 					});
 				};
 			}
+			function acceptInputs(newInputs) {
+				newInputs = sortInputs(newInputs, function(a) { return a.file.name; });
+				inputImages = newInputs;
+				infoText(document.title = inputImages[0].file.name);
+				if (inputImages[0].spp) {
+					gui.spp = inputImages[0].spp;
+					console.log('detected ' + gui.spp + 'spp');
+				}
+			}
+			function loadRemoteInputs(urls) {
+				var newInputs = [];
+				for (var fileName of urls) {
+					var img = new FileImage( { name: fileName } );
+					newInputs.push(img);
+
+					var xhrObj = new XMLHttpRequest();
+//					xhrObj.overrideMimeType(script.type);
+					xhrObj.responseType = 'blob';
+					xhrObj.open('GET', fileName, true);
+					xhrObj.onload = function () {
+						var scope = img;
+						return function(evt) { scope.load(new FileReaderSync().readAsDataURL(evt.target.response)); };
+					}();
+					xhrObj.send();
+				}
+				acceptInputs(newInputs);
+			}
 			function UiParameters() {
 				this.gui = new dat.GUI();
 				this.exposure = 1;
@@ -198,7 +236,7 @@
 
 				this.kappa = 32;
 				this.spp = 1024;
-				this.cascadeBase = 8;
+				this.cascadeBase = defaultCascadeBase;
 				this.cascadeStart = 1;
 				this.gui.add(this, 'kappa', 1, 128).listen();;
 				this.gui.add(this, 'spp', 32, 4096).listen();;
@@ -219,18 +257,19 @@
 						reader.onload = function() { var scope = img; return function(evt) { scope.load(evt.target.result); }; }();
 						reader.readAsDataURL(fileName);
 					}
-					newInputs = sortInputs(newInputs, function(a) { return a.file.name; });
-					inputImages = newInputs;
-					infoText(document.title = inputImages[0].file.name);
-					if (inputImages[0].spp) {
-						scope.spp = inputImages[0].spp;
-						console.log('detected ' + scope.spp + 'spp');
-					}
+					acceptInputs(newInputs);
 				};
 				var inputButton = document.getElementById('input-button');
 				inputButton.addEventListener('change', handleFileSelect, false);
 				this.loadFiles = function() { inputButton.click(); };
 				this.gui.add(this, 'loadFiles').name('Load EXR');
+
+				for (var i = 0; i < exampleScenes.length; i+=2) {
+					var exampleName = 'example_' + exampleScenes[i];
+					this[exampleName] = function() { var files = exampleScenes[i+1]; return function() { loadRemoteInputs(files); }; }();
+					this.gui.add(this, exampleName).name('Load ' + exampleScenes[i]);
+				}
+
 				infoText('ready');
 			}
 /*			//
