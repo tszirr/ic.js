@@ -10,15 +10,16 @@
 				margin: 0px;
 				overflow: hidden;
 			}
+			#hiddenInterface { display:none; }
 			#info {
 				position: absolute;
-				top: 10px; width: 60%;
+				top: 10px; width: 100%;
 				color: #ffffff;
 				padding: 5px;
 				font-family: Monospace;
 				font-size: 13px;
 				text-align: center;
-				z-index:100;
+				z-index:10;
 			}
 			a {
 				color: orange;
@@ -27,14 +28,20 @@
 			a:hover {
 				color: #0080ff;
 			}
+			.dg.ac {
+				z-index:20 !important;
+			}
 		</style>
 	</head>
 	<body>
 
+		<div id="hiddenInterface"><
+			<input id="input-button" type="file" multiple="true" style="visibility:hidden;">
+		</div>
+
 		<div id="info">
 			<a href="http://threejs.org" target="_blank" rel="noopener">three.js</a> - Reweighted Monte Carlo
-			<input id="input-button" type="file" multiple="true">
-			[<span id="info-output"></span>]
+			[ <span id="info-output"></span> ]
 			<pre id="print-output"></pre>
 		</div>
 
@@ -134,7 +141,11 @@
 			init();
 			var gui = new UiParameters();
 			animate();
+			function infoText(infotext) {
+				document.getElementById( 'info-output' ).innerHTML = infotext;
+			}
 			function init() {
+				infoText('loading');
 				renderer = new THREE.WebGLRenderer( { antialias: false, depth: false, stencil: false } );
 				renderer.gammaOutput = true;
 				renderer.setPixelRatio( window.devicePixelRatio );
@@ -150,12 +161,11 @@
 				quad.frustumCulled = false;
 				scene.add( quad );
 				//
-				infotext = '';
 				rwMaterial = new THREE.ShaderMaterial( loadShader('reweighting-shader', rwUniforms) );
 				emptyMaterial = new THREE.ShaderMaterial( loadShader('empty-shader', {}) );
 				passMaterial = new THREE.ShaderMaterial( loadShader('passpart-shader', passUniforms) );
 				//
-				document.getElementById( 'info-output' ).innerHTML = infotext;
+				infoText('renderer ready');
 			}
 			//
 			var windowHalfX = window.innerWidth / 2;
@@ -193,7 +203,7 @@
 				this.gui.add(this, 'kappa', 1, 128).listen();;
 				this.gui.add(this, 'spp', 32, 4096).listen();;
 				this.gui.add(this, 'cascadeBase', 1, 8).listen();;
-				this.gui.add(this, 'cascadeStart', .125, 4).listen();;
+				this.gui.add(this, 'cascadeStart', .125, 4).listen();
 
 				var scope = this;
 
@@ -211,12 +221,17 @@
 					}
 					newInputs = sortInputs(newInputs, function(a) { return a.file.name; });
 					inputImages = newInputs;
+					infoText(document.title = inputImages[0].file.name);
 					if (inputImages[0].spp) {
 						scope.spp = inputImages[0].spp;
 						console.log('detected ' + scope.spp + 'spp');
 					}
 				};
-				document.getElementById('input-button').addEventListener('change', handleFileSelect, false);
+				var inputButton = document.getElementById('input-button');
+				inputButton.addEventListener('change', handleFileSelect, false);
+				this.loadFiles = function() { inputButton.click(); };
+				this.gui.add(this, 'loadFiles').name('Load EXR');
+				infoText('ready');
 			}
 /*			//
 			function onDocumentMouseMove( event ) {
