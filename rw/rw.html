@@ -11,29 +11,6 @@
 				overflow: hidden;
 			}
 			#hiddenInterface { display:none; }
-			#info {
-				position: absolute;
-				top: 10px; width: 100%;
-				color: #ffffff;
-				padding: 5px;
-				font-family: Monospace;
-				font-size: 13px;
-				text-align: center;
-				z-index:10;
-			}
-			#tutorial-arrow {
-				position: absolute;
-				font-family: monospace;
-				right: 400px; top: 150px;
-				z-index:15;
-				color:#cc0044;
-				font-size:100px;
-				font-weight:bolder;
-				display:none;
-			}
-			#tutorial-arrow > div {
-				font-size:50%;
-			}
 			a {
 				color: orange;
 				text-decoration: none;
@@ -43,6 +20,56 @@
 			}
 			.dg.ac {
 				z-index:20 !important;
+			}
+			#info {
+				position: absolute;
+				top: 10px; left:15%; width: 70%;
+				color: #ffffff;
+				padding: 5px;
+				font-family: Monospace;
+				font-size: 13px;
+				text-align: center;
+				z-index:10;
+			}
+			#info:hover #print-output {
+				display:block;
+			}
+			#print-output {
+				position: relative;
+				text-align: left;
+				max-height: 90vh;
+				overflow: auto;
+				background: rgba(0,0,0,0.5);
+				display: none;
+			}
+			#print-indicator {
+				background: rgba(255,0,.1,0.5);
+				display: none;
+				position: relative;
+			}
+			#print-indicator i {
+				position: absolute;
+				width:10px;
+				height:10px;
+				bottom:-13px;
+				left:45%;
+				border:0px solid rgba(255,0,.1,0.5);
+				border-left-width: 4px;
+				border-bottom-width: 4px;
+				transform: rotate(-45deg);
+			}
+			#tutorial-arrow {
+				position: absolute;
+				font-family: monospace;
+				right: 400px; top: 150px;
+				z-index:100;
+				color: #cc0044;
+				font-size: 100px;
+				font-weight: bolder;
+				display: none;
+			}
+			#tutorial-arrow > div {
+				font-size:50%;
 			}
 		</style>
 	</head>
@@ -54,7 +81,7 @@
 
 		<div id="info">
 			<a href="http://threejs.org" target="_blank" rel="noopener">three.js</a> - Reweighted Monte Carlo
-			[ <span id="info-output"></span> ]
+			[ <span id="info-output"></span> ] <span id="print-indicator">Output <i></i>Available</span>
 			<pre id="print-output"></pre>
 		</div>
 
@@ -175,6 +202,14 @@
 			function infoText(infotext) {
 				document.getElementById( 'info-output' ).innerHTML = infotext;
 			}
+			function printOutput(text) {
+				var out = document.getElementById( 'print-output' );
+				out.innerHTML = rwMaterial.fragmentShader;
+
+				document.getElementById( 'print-indicator' ).style.display = 'inline-block';				
+				out.style.display = 'block';
+				window.setTimeout(function(){ out.style.display = null; }, 1000);
+			}
 			function init() {
 				infoText('loading');
 				renderer = new THREE.WebGLRenderer( { antialias: false, depth: false, stencil: false } );
@@ -291,6 +326,10 @@
 					this[exampleName] = function() { var files = exampleScenes[i+1]; return function() { loadRemoteInputs(files); }; }();
 					exampleFolder.add(this, exampleName).name(exampleScenes[i]);
 				}
+				this.showSource = function() {
+					printOutput(rwMaterial.fragmentShader);
+				};
+				exampleFolder.add(this, 'showSource').name('Show source');
 				exampleFolder.open();
 
 				infoText('ready');
