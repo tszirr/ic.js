@@ -310,10 +310,11 @@
 				this.spp = 1024;
 				this.cascadeBase = defaultCascadeBase;
 				this.cascadeStart = 1;
-				this.gui.add(this, 'kappa', 1, 128).listen();;
-				this.gui.add(this, 'spp', 32, 4096).listen();;
-				this.gui.add(this, 'cascadeBase', 1, 8).listen();;
-				this.gui.add(this, 'cascadeStart', .125, 4).listen();
+				this.gui.add(this, 'kappa', 1, 128).listen();
+				var inputDataFolder = this.gui.addFolder('Input Description')
+				inputDataFolder.add(this, 'spp', 32, 4096).listen();
+				inputDataFolder.add(this, 'cascadeBase', 1, 8).listen();
+				inputDataFolder.add(this, 'cascadeStart', .125, 4).listen();
 
 				var scope = this;
 
