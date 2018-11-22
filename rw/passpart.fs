@@ -11,4 +11,6 @@ void main() {
 
     gl_FragColor = texture2D(picture, c/size, 0.);
     gl_FragColor.xyz *= exposure;
+    // todo: wait for three js SRGB framebuffer support
+    gl_FragColor.xyz = pow(gl_FragColor.xyz, vec3(1./2.2));
 }

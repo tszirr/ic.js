@@ -99,13 +99,15 @@
 			function completeInputs(basename, cascadeBase, cascasdeStart, cascadeSize) {
 				var inputs = [ basename + '.regular.exr' ];
 				for (var i = 0, b = cascasdeStart * cascadeBase; i < cascadeSize; i++, b *= cascadeBase) {
-					inputs.push( basename + '.min' + b + '.exr' );
+					inputs.push( basename + '.light_min' + b + '.exr' );
 				}
 				return inputs;
 			}
 			var defaultCascadeBase = 8;
 			var urlInputs = [];
-			var exampleScenes = [ 'bathroom', completeInputs('bathroom/proc.dbg.2048', 8, 1, 6) ];
+			var exampleScenes = [ 'Bathroom', completeInputs('bathroom/prog.dbg.2048', 8, 1, 6),
+				'Flashlight', completeInputs('flashlight/prog.dbg.8192', 8, 1, 6),
+				'Torus', completeInputs('torus/prog.dbg.1024', 8, 1, 6) ];
 			var urlExample;
 			{
 				var urlParams = new URLSearchParams(document.location.search);
@@ -213,7 +215,7 @@
 			function init() {
 				infoText('loading');
 				renderer = new THREE.WebGLRenderer( { antialias: false, depth: false, stencil: false } );
-				renderer.gammaOutput = true;
+				// todo: wait for three js SRGB framebuffer support
 				renderer.setPixelRatio( window.devicePixelRatio );
 				//
 				window.addEventListener( 'resize', onWindowResize, false );
@@ -274,12 +276,25 @@
 					newInputs.push(img);
 
 					var xhrObj = new XMLHttpRequest();
-//					xhrObj.overrideMimeType(script.type);
-					xhrObj.responseType = 'blob';
 					xhrObj.open('GET', fileName, true);
+					xhrObj.overrideMimeType('application/octet-stream');
+					xhrObj.responseType = 'blob';
 					xhrObj.onload = function () {
 						var scope = img;
-						return function(evt) { scope.load(new FileReaderSync().readAsDataURL(evt.target.response)); };
+						var req = xhrObj;
+						return function() {
+							var reader = new FileReader();
+							var contenttype = req.getResponseHeader("Content-Type");
+							if (!contenttype || !contenttype.includes('text')) {
+								reader.onload = function(evt) { scope.load(evt.target.result); }
+								reader.readAsDataURL( req.response );
+							}
+							else {
+								reader.onload = function(evt) { window.alert(evt.target.result); }
+								reader.readAsText( req.response );
+							}
+							
+						};
 					}();
 					xhrObj.send();
 				}
@@ -332,7 +347,7 @@
 				exampleFolder.add(this, 'showSource').name('Show source');
 				exampleFolder.open();
 
-				infoText('ready');
+				infoText('documents processed');
 			}
 			function tutorial() {
 				if (urlExample) {
@@ -341,9 +356,10 @@
 							loadRemoteInputs(exampleScenes[i+1]);
 						}
 					}
-					infoText('example ready, you can load your own files!');
+					infoText('example processed, you can also load your own files!');
 				}
-				else
+				// nothing loaded yet
+				if (inputImages.length < 1)
 					document.getElementById('tutorial-arrow').style.display = 'block';
 			}
 			function tutorialAccepted() {
@@ -403,12 +419,23 @@
 					return outputFor(texture);
 				}
 			}
+			var wasComplete = null;
+			function signalComplete(complete, incompletemsg) {
+				if (!complete || !wasComplete) {
+					if (!complete)
+						infoText(incompletemsg(wasComplete));
+					else
+						infoText('ready');
+					wasComplete = complete;
+				}
+			}
 			function render() {
 				renderer.autoClear = true;
 				quad.material = emptyMaterial;
 				renderer.render(scene, camera);
 				renderer.autoClear = false;
 
+				var imagesMissing = inputImages.length;
 				if (inputImages.length > 0 && inputImages[0].texture) {
 					outputTexture = updateOutputFor(inputImages[0].texture, outputTexture);
 					outputBuffer = updateOutputFor(inputImages[0].texture, outputBuffer);
@@ -417,6 +444,7 @@
 					quad.material = rwMaterial;
 					var passCount = 0;
 					var currScale = gui.cascadeStart;
+					imagesMissing = 0;
 					for (var image of inputImages) {
 						if (image.texture) {
 							var inputSize = new THREE.Vector2(image.texture.image.width, image.texture.image.height);
@@ -438,6 +466,8 @@
 							outputTexture = outputBuffer;
 							outputBuffer = ob;
 						}
+						else
+							imagesMissing++;
 
 						passCount++;
 						currScale *= gui.cascadeBase;
@@ -450,6 +480,8 @@
 					passUniforms.offset.value = new THREE.Vector2(windowHalfX, windowHalfY).addScaledVector(outputSize, -.5);
 					renderer.render(scene, camera);
 				}
+
+				signalComplete(imagesMissing == 0, function() { return 'loading ' + imagesMissing; });
 			}
 		</script>
 	</body>
