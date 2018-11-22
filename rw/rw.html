@@ -21,6 +21,19 @@
 				text-align: center;
 				z-index:10;
 			}
+			#tutorial-arrow {
+				position: absolute;
+				font-family: monospace;
+				right: 400px; top: 150px;
+				z-index:15;
+				color:#cc0044;
+				font-size:100px;
+				font-weight:bolder;
+				display:none;
+			}
+			#tutorial-arrow > div {
+				font-size:50%;
+			}
 			a {
 				color: orange;
 				text-decoration: none;
@@ -45,6 +58,10 @@
 			<pre id="print-output"></pre>
 		</div>
 
+		<div id="tutorial-arrow">
+			Load something ><div>(Examples or your own)</div>
+		</div>
+
 		<script src="three.min.js"></script>
 		<script src="dat.gui.min.js"></script>
 		
@@ -62,6 +79,7 @@
 			var defaultCascadeBase = 8;
 			var urlInputs = [];
 			var exampleScenes = [ 'bathroom', completeInputs('bathroom/proc.dbg.2048', 8, 1, 6) ];
+			var urlExample;
 			{
 				var urlParams = new URLSearchParams(document.location.search);
 				console.log(document.location.href)
@@ -70,6 +88,7 @@
 					defaultCascadeBase = param;
 				if (param = urlParams.get('inputs-basename'))
 					urlInputs = completeInputs(param, defaultCascadeBase, 1, 6);
+				urlExample = urlParams.get('example');
 			}
 			// input sorting
 			var collator = new Intl.Collator(undefined, {numeric: true, sensitivity: 'base'});
@@ -151,6 +170,7 @@
 			};
 			init();
 			var gui = new UiParameters();
+			tutorial();
 			animate();
 			function infoText(infotext) {
 				document.getElementById( 'info-output' ).innerHTML = infotext;
@@ -206,6 +226,7 @@
 				newInputs = sortInputs(newInputs, function(a) { return a.file.name; });
 				inputImages = newInputs;
 				infoText(document.title = inputImages[0].file.name);
+				tutorialAccepted();
 				if (inputImages[0].spp) {
 					gui.spp = inputImages[0].spp;
 					console.log('detected ' + gui.spp + 'spp');
@@ -264,13 +285,30 @@
 				this.loadFiles = function() { inputButton.click(); };
 				this.gui.add(this, 'loadFiles').name('Load EXR');
 
+				var exampleFolder = this.gui.addFolder('Examples')
 				for (var i = 0; i < exampleScenes.length; i+=2) {
 					var exampleName = 'example_' + exampleScenes[i];
 					this[exampleName] = function() { var files = exampleScenes[i+1]; return function() { loadRemoteInputs(files); }; }();
-					this.gui.add(this, exampleName).name('Load ' + exampleScenes[i]);
+					exampleFolder.add(this, exampleName).name(exampleScenes[i]);
 				}
+				exampleFolder.open();
 
 				infoText('ready');
+			}
+			function tutorial() {
+				if (urlExample) {
+					for (var i = 0; i < exampleScenes.length; i+=2) {
+						if (exampleScenes[i] == urlExample) {
+							loadRemoteInputs(exampleScenes[i+1]);
+						}
+					}
+					infoText('example ready, you can load your own files!');
+				}
+				else
+					document.getElementById('tutorial-arrow').style.display = 'block';
+			}
+			function tutorialAccepted() {
+				document.getElementById('tutorial-arrow').style.display = 'none';
 			}
 /*			//
 			function onDocumentMouseMove( event ) {
