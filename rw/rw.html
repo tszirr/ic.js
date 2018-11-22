@@ -196,6 +196,7 @@
 				offset: { },
 				size: { },
 				exposure: { },
+				gamma: { value: 2.2 },
 				picture: { },
 			};
 			init();
@@ -304,7 +305,7 @@
 			function UiParameters() {
 				this.gui = new dat.GUI();
 				this.exposure = 1;
-				this.gui.add(this, 'exposure', -2, 3).listen();;
+				this.gui.add(this, 'exposure', -2, 3).listen();
 
 				this.kappa = 32;
 				this.spp = 1024;
@@ -315,6 +316,9 @@
 				inputDataFolder.add(this, 'spp', 32, 4096).listen();
 				inputDataFolder.add(this, 'cascadeBase', 1, 8).listen();
 				inputDataFolder.add(this, 'cascadeStart', .125, 4).listen();
+
+				this.gamma = passUniforms.gamma.value;
+				this.gui.add(this, 'gamma', 1, 2.5);
 
 				var scope = this;
 
@@ -405,6 +409,7 @@
 			function outputFor(texture) {
 				var parameters = {
 					format: THREE.RGBAFormat,
+					type: THREE.HalfFloatType,
 					minFilter: THREE.NearestFilter,
 					magFilter: THREE.NearestFilter,
 					depthBuffer: false,
@@ -477,6 +482,7 @@
 					
 					quad.material = passMaterial;
 					passUniforms.exposure.value = Math.pow(10, gui.exposure-1);
+					passUniforms.gamma.value = gui.gamma;
 					passUniforms.picture.value = outputTexture.texture;
 					passUniforms.size.value = outputSize;
 					passUniforms.offset.value = new THREE.Vector2(windowHalfX, windowHalfY).addScaledVector(outputSize, -.5);
