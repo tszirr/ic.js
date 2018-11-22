@@ -218,7 +218,7 @@
 				infoText('loading');
 				renderer = new THREE.WebGLRenderer( { antialias: false, depth: false, stencil: false } );
 				// todo: wait for three js SRGB framebuffer support
-				renderer.setPixelRatio( window.devicePixelRatio );
+				renderer.setPixelRatio( 1 ); // window.devicePixelRatio;
 				//
 				window.addEventListener( 'resize', onWindowResize, false );
 				onWindowResize();
