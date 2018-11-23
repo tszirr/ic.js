@@ -301,6 +301,10 @@
 					gui.spp = inputImages[0].spp;
 					console.log('detected ' + gui.spp + 'spp');
 				}
+				if (inputImages.length > 1)
+					gui.rwFolder.open();
+				else
+					gui.rwFolder.close();
 			}
 			function loadRemoteInputs(urls) {
 				var newInputs = [];
@@ -335,21 +339,26 @@
 			}
 			function UiParameters() {
 				this.ui = new dat.GUI();
-				this.exposure = 1;
-				this.ui.add(this, 'exposure', -2, 3).listen();
-
+				
 				this.kappa = 32;
+				this.rwFolder = this.ui.addFolder('Reweighting');
+				this.rwFolder.open();
+				this.rwFolder.add(this, 'kappa', 1, 128).name('K ("min spp")').listen();
+
+				this.exposure = 1;
+				this.gamma = passUniforms.gamma.value;
+				var adjustFolder = this.ui.addFolder('Adjustments');
+				adjustFolder.open();
+				adjustFolder.add(this, 'exposure', -2, 3).listen();
+				adjustFolder.add(this, 'gamma', 1, 2.5);
+
 				this.spp = 1024;
 				this.cascadeBase = defaultCascadeBase;
 				this.cascadeStart = 1;
-				this.ui.add(this, 'kappa', 1, 128).listen();
-				var inputDataFolder = this.ui.addFolder('Input Description')
+				var inputDataFolder = this.ui.addFolder('Input Description');
 				inputDataFolder.add(this, 'spp', 32, 4096).listen();
 				inputDataFolder.add(this, 'cascadeBase', 1, 8).listen();
 				inputDataFolder.add(this, 'cascadeStart', .125, 4).listen();
-
-				this.gamma = passUniforms.gamma.value;
-				this.ui.add(this, 'gamma', 1, 2.5);
 
 				var scope = this;
 
@@ -372,17 +381,17 @@
 				this.loadFiles = function() { inputButton.click(); };
 				this.ui.add(this, 'loadFiles').name('Load EXR/PFM/PPM');
 
-				var exampleFolder = this.ui.addFolder('Examples')
+				this.exampleFolder = this.ui.addFolder('Examples');
+				this.exampleFolder.open();
 				for (var i = 0; i < exampleScenes.length; i+=2) {
 					var exampleName = 'example_' + exampleScenes[i];
 					this[exampleName] = function() { var files = exampleScenes[i+1]; return function() { loadRemoteInputs(files); }; }();
-					exampleFolder.add(this, exampleName).name(exampleScenes[i]);
+					this.exampleFolder.add(this, exampleName).name(exampleScenes[i]);
 				}
 				this.showSource = function() {
 					printOutput(rwMaterial.fragmentShader);
 				};
-				exampleFolder.add(this, 'showSource').name('Show source');
-				exampleFolder.open();
+				this.ui.add(this, 'showSource').name('Show source');
 
 				infoText('documents processed');
 			}
