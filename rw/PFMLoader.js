@@ -29,31 +29,49 @@ THREE.PFMLoader.prototype._parser = function ( buffer ) {
 	var headerString = parseString( charBuffer, cursor );
 
 	var channelCount;
+	var floatFormat = true;
 	if (headerString == 'PF')
 		channelCount = 3;
 	else if (headerString == 'Pf')
 		channelCount = 1;
-	else
+	else if (headerString == 'P6') {
+		channelCount = 3;
+		floatFormat = false;
+	} else if (headerString == 'P5') {
+		channelCount = 1;
+		floatFormat = false;
+	} else
 		throw 'Invalid PFM header string: ' + headerString;
 
 	var pfmHeader = { channels: channelCount };
 
 	pfmHeader.width = Number( parseString( charBuffer, cursor ) );
 	pfmHeader.height = Number( parseString( charBuffer, cursor ) );
-	var ratio = Number( parseString( charBuffer, cursor ) );
 
-	if (ratio >= 0)
-		throw 'Big endian PFM not currently supported';
-	pfmHeader.scale = Math.abs(ratio);
+	var dataBytes, dataType;
+	
+	if (floatFormat) {	
+		var ratio = Number( parseString( charBuffer, cursor ) );
+		if (ratio >= 0)
+			throw 'Big endian PFM not currently supported';
+		pfmHeader.scale = Math.abs(ratio);
 
-	var floatBuffer = new Float32Array( buffer, cursor.value );
+		dataBytes = new Float32Array( buffer, cursor.value );
+		dataType = THREE.FloatType;
+	} else {
+		pfmHeader.scale = 1;
+		pfmHeader.maxVal = Number( parseString( charBuffer, cursor ) );
+
+		dataBytes = new Uint8Array( buffer, cursor.value );
+		dataType = pfmHeader.maxVal < 256 ? THREE.UnsignedByteType : THREE.UnsignedShortType;
+	}
 
 	return {
 		header: pfmHeader,
 		width: pfmHeader.width,
 		height: pfmHeader.height,
-		data: floatBuffer,
+		data: dataBytes,
 		format: channelCount == 3 ? THREE.RGBFormat : THREE.LuminanceFormat,
-		type: THREE.FloatType
+		type: dataType
 	};
 };

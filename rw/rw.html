@@ -370,7 +370,7 @@
 				var inputButton = document.getElementById('input-button');
 				inputButton.addEventListener('change', handleFileSelect, false);
 				this.loadFiles = function() { inputButton.click(); };
-				this.gui.add(this, 'loadFiles').name('Load EXR/PFM');
+				this.gui.add(this, 'loadFiles').name('Load EXR/PFM/PPM');
 
 				var exampleFolder = this.gui.addFolder('Examples')
 				for (var i = 0; i < exampleScenes.length; i+=2) {
