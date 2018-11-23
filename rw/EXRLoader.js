@@ -1029,6 +1029,9 @@ THREE.EXRLoader.prototype._parser = function ( buffer ) {
 	var versionByteZero = bufferDataView.getUint8( 4, true );
 	var fullMask = bufferDataView.getUint8( 5, true );
 
+	if (magic != 0x01312F76)
+		throw 'Not an EXR file, wrong magic number: ' + magic;
+
 	// start of header
 
 	var offset = { value: 8 }; // start at 8, after magic stuff

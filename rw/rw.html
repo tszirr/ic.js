@@ -95,6 +95,13 @@
 		
 		<script src="pako_inflate.min.js"></script>
 		<script src="EXRLoader.js"></script>
+		<script src="PFMLoader.js"></script>
+		<script>
+			var imageLoaders = [
+				{ formats: ['exr'], loader: new THREE.EXRLoader(), flipY: false },
+				{ formats: ['pfm', 'ppm'], loader: new THREE.PFMLoader(), flipY: true },
+			];
+		</script>
 
 		<script>
 			function completeInputs(basename, cascadeBase, cascasdeStart, cascadeSize) {
@@ -139,7 +146,7 @@
 				alnum.sort( function(a, b) { return collator.compare(getName(a), getName(b)); } );
 				var numbered = alnum.map( x => [getName(x).match(/\d+/g), x] );
 				numbered.sort( function(a, b) { return arrayCompare(a[0], b[0]); } );
-				var sppNumIdx = Math.max(0, numbered[0][0].length-1);
+				var sppNumIdx = Math.max(0, Math.min(numbered[0][0].length-1, numbered[numbered.length-1][0].length-2));
 				var cascadeNumIdx = Math.max(sppNumIdx+1, numbered[numbered.length-1][0].length-1);
 				return numbered.map( function(a) {
 					if (sppNumIdx < a[0].length)
@@ -246,19 +253,43 @@
 				renderer.setSize( window.innerWidth, window.innerHeight );
 			}
 			//
-			var exrLoader = new THREE.EXRLoader();
 			function FileImage(fileName) {
 				this.file = fileName;
 				this.texture = null;
 				this.load = function(data) {
 					var scope = this;
-					exrLoader.load( data, function ( texture, textureData ) {
+					var loaded = false;
+					var flipY;
+					var textureSetup = function ( texture, textureData ) {
 						console.log(scope.file);
 						texture.minFilter = THREE.NearestFilter;
 						texture.magFilter = THREE.NearestFilter;
 						texture.generateMipmaps = false;
+						console.log(texture.flipY + '->' + flipY);
+						texture.flipY = flipY;
 						scope.texture = texture;
-					});
+						loaded = true;
+					}
+
+					for (var table of imageLoaders) {
+						for (var format of table.formats) {
+							if (this.file.name.endsWith(format)) {
+								flipY = table.flipY;
+								table.loader.load( data, textureSetup );
+								return loaded;
+							}
+						}
+					}
+					for (var table of imageLoaders) {
+						try {
+							flipY = table.flipY;
+							table.loader.load( data, textureSetup );
+						}
+						catch (err) {  }
+						if (loaded)
+							return true;
+					}
+					return false;
 				};
 			}
 			function acceptInputs(newInputs) {
@@ -331,7 +362,7 @@
 						newInputs.push(img);
 
 						var reader = new FileReader();
-						reader.onload = function() { var scope = img; return function(evt) { scope.load(evt.target.result); }; }();
+						reader.onload = function() { var scope = img; return function(evt) { try { scope.load(evt.target.result); } catch(err) { window.alert(err); } }; }();
 						reader.readAsDataURL(fileName);
 					}
 					acceptInputs(newInputs);
@@ -339,7 +370,7 @@
 				var inputButton = document.getElementById('input-button');
 				inputButton.addEventListener('change', handleFileSelect, false);
 				this.loadFiles = function() { inputButton.click(); };
-				this.gui.add(this, 'loadFiles').name('Load EXR');
+				this.gui.add(this, 'loadFiles').name('Load EXR/PFM');
 
 				var exampleFolder = this.gui.addFolder('Examples')
 				for (var i = 0; i < exampleScenes.length; i+=2) {
