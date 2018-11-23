@@ -334,22 +334,22 @@
 				acceptInputs(newInputs);
 			}
 			function UiParameters() {
-				this.gui = new dat.GUI();
+				this.ui = new dat.GUI();
 				this.exposure = 1;
-				this.gui.add(this, 'exposure', -2, 3).listen();
+				this.ui.add(this, 'exposure', -2, 3).listen();
 
 				this.kappa = 32;
 				this.spp = 1024;
 				this.cascadeBase = defaultCascadeBase;
 				this.cascadeStart = 1;
-				this.gui.add(this, 'kappa', 1, 128).listen();
-				var inputDataFolder = this.gui.addFolder('Input Description')
+				this.ui.add(this, 'kappa', 1, 128).listen();
+				var inputDataFolder = this.ui.addFolder('Input Description')
 				inputDataFolder.add(this, 'spp', 32, 4096).listen();
 				inputDataFolder.add(this, 'cascadeBase', 1, 8).listen();
 				inputDataFolder.add(this, 'cascadeStart', .125, 4).listen();
 
 				this.gamma = passUniforms.gamma.value;
-				this.gui.add(this, 'gamma', 1, 2.5);
+				this.ui.add(this, 'gamma', 1, 2.5);
 
 				var scope = this;
 
@@ -370,9 +370,9 @@
 				var inputButton = document.getElementById('input-button');
 				inputButton.addEventListener('change', handleFileSelect, false);
 				this.loadFiles = function() { inputButton.click(); };
-				this.gui.add(this, 'loadFiles').name('Load EXR/PFM/PPM');
+				this.ui.add(this, 'loadFiles').name('Load EXR/PFM/PPM');
 
-				var exampleFolder = this.gui.addFolder('Examples')
+				var exampleFolder = this.ui.addFolder('Examples')
 				for (var i = 0; i < exampleScenes.length; i+=2) {
 					var exampleName = 'example_' + exampleScenes[i];
 					this[exampleName] = function() { var files = exampleScenes[i+1]; return function() { loadRemoteInputs(files); }; }();
@@ -473,11 +473,20 @@
 				renderer.render(scene, camera);
 				renderer.autoClear = false;
 
+				var resultTexture = null;
+				var resultSize;
 				var imagesMissing = inputImages.length;
+				// 1 or base image
 				if (inputImages.length > 0 && inputImages[0].texture) {
-					outputTexture = updateOutputFor(inputImages[0].texture, outputTexture);
-					outputBuffer = updateOutputFor(inputImages[0].texture, outputBuffer);
-					var outputSize = new THREE.Vector2(outputTexture.width, outputTexture.height);
+					resultTexture = inputImages[0].texture;
+					resultSize = new THREE.Vector2(resultTexture.image.width, resultTexture.image.height);
+					--imagesMissing;
+				}
+				// re-weighting stack
+				if (inputImages.length > 1 && resultTexture) {
+					outputTexture = updateOutputFor(resultTexture, outputTexture);
+					outputBuffer = updateOutputFor(resultTexture, outputBuffer);
+					outputSize = resultSize.clone();
 
 					quad.material = rwMaterial;
 					var passCount = 0;
@@ -510,13 +519,20 @@
 						passCount++;
 						currScale *= gui.cascadeBase;
 					}
-					
+
+					resultTexture = outputTexture;
+					resultSize = outputSize;
+				}
+
+				if (resultTexture) {
 					quad.material = passMaterial;
 					passUniforms.exposure.value = Math.pow(10, gui.exposure-1);
 					passUniforms.gamma.value = gui.gamma;
-					passUniforms.picture.value = outputTexture.texture;
-					passUniforms.size.value = outputSize;
-					passUniforms.offset.value = new THREE.Vector2(windowHalfX, windowHalfY).addScaledVector(outputSize, -.5);
+					passUniforms.picture.value = resultTexture;
+					passUniforms.size.value = resultSize;
+					passUniforms.offset.value = new THREE.Vector2(windowHalfX, windowHalfY).addScaledVector(resultSize, -.5);
+					var halfGuiWidth = gui.ui.width / 1.85;
+					passUniforms.offset.value.x -= halfGuiWidth * Math.max(Math.min(2 - passUniforms.offset.value.x / halfGuiWidth, 1), 0);
 					renderer.render(scene, camera);
 				}
 
