@@ -505,6 +505,7 @@
 						if (image.texture) {
 							var inputSize = new THREE.Vector2(image.texture.image.width, image.texture.image.height);
 							rwUniforms.cropOffset.value = outputSize.clone().sub(inputSize).multiplyScalar(.5);
+							rwUniforms.cropOffset.value.round(); // don't resample!
 							rwUniforms.size.value = inputSize;
 							rwUniforms.picture.value = outputTexture.texture;
 							rwUniforms.hasPicture.value = (passCount > 0);
@@ -542,6 +543,7 @@
 					passUniforms.offset.value = new THREE.Vector2(windowHalfX, windowHalfY).addScaledVector(resultSize, -.5);
 					var halfGuiWidth = gui.ui.width / 1.85;
 					passUniforms.offset.value.x -= halfGuiWidth * Math.max(Math.min(2 - passUniforms.offset.value.x / halfGuiWidth, 1), 0);
+					passUniforms.offset.value.round(); // don't resample!
 					renderer.render(scene, camera);
 				}
 
