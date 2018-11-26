@@ -320,13 +320,17 @@
 						var scope = img;
 						var req = xhrObj;
 						return function() {
-							var reader = new FileReader();
 							var contenttype = req.getResponseHeader("Content-Type");
 							if (!contenttype || !contenttype.includes('text')) {
-								reader.onload = function(evt) { scope.load(evt.target.result); }
-								reader.readAsDataURL( req.response );
+								try {
+									var fileUrl = URL.createObjectURL(req.response);
+									scope.load(fileUrl);
+								} catch(err) {
+									window.alert(err);
+								}
 							}
 							else {
+								var reader = new FileReader();
 								reader.onload = function(evt) { window.alert(evt.target.result); }
 								reader.readAsText( req.response );
 							}
@@ -370,9 +374,12 @@
 						var img = new FileImage(fileName);
 						newInputs.push(img);
 
-						var reader = new FileReader();
-						reader.onload = function() { var scope = img; return function(evt) { try { scope.load(evt.target.result); } catch(err) { window.alert(err); } }; }();
-						reader.readAsDataURL(fileName);
+						try {
+							var fileUrl = URL.createObjectURL(fileName);
+							img.load(fileUrl);
+						} catch(err) {
+							window.alert(err);
+						}
 					}
 					acceptInputs(newInputs);
 				};
