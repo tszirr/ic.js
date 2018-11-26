@@ -56,7 +56,13 @@ THREE.PFMLoader.prototype._parser = function ( buffer ) {
 			throw 'Big endian PFM not currently supported';
 		pfmHeader.scale = Math.abs(ratio);
 
-		dataBytes = new Float32Array( buffer, cursor.value );
+		try {
+			dataBytes = new Float32Array( buffer, cursor.value );
+		}
+		catch {
+			// in case unaligned access is forbidden ...
+			dataBytes = new Float32Array( buffer.slice(cursor.value), 0 );
+		}
 		dataType = THREE.FloatType;
 	} else {
 		pfmHeader.scale = 1;
