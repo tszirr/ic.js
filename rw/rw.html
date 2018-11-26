@@ -78,6 +78,7 @@
 
 		<div id="hiddenInterface"><
 			<input id="input-button" type="file" multiple="true" style="visibility:hidden;">
+			<span id="output-area" style="visibility:hidden;"></span>
 		</div>
 
 		<div id="info">
@@ -401,6 +402,32 @@
 				this.loadFiles = function() { inputButton.click(); };
 				this.ui.add(this, 'loadFiles').name('Load EXR/PFM/PPM');
 
+				var outputArea = document.getElementById('output-area');
+				this.saveFile = function() {
+					var result = readBack();
+					try {
+						var a = document.createElement("a");
+						a.download = (inputImages.length > 0 ? inputImages[0].file.name : 'result');
+						var resultFile = new THREE.PFMLoader().serializeRGBtoPF(result, result.bytes);
+						a.href = URL.createObjectURL(resultFile);
+						a.type = 'application/octet-stream';
+						try {
+							outputArea.appendChild(a);
+							a.click();
+						}
+						finally {
+							setTimeout(function() {
+								outputArea.removeChild(a);
+								URL.revokeObjectURL(a.href);
+							}, 0); 
+						}
+					}
+					catch (err) {
+						window.alert(err);
+					}
+				};
+				this.ui.add(this, 'saveFile').name('Save PFM');
+
 				this.exampleFolder = this.ui.addFolder('Examples');
 				this.exampleFolder.open();
 				for (var i = 0; i < exampleScenes.length; i+=2) {
@@ -466,16 +493,39 @@
 
 				window.setTimeout(animate, 1000 / 8);
 			}
+			function readBack() {
+				var resultData = null;
+				if (wasComplete) {
+					var imgTexture = renderResult();
+					var resultTarget = processResult(imgTexture);
+					var resultBuffer = new Float32Array(4 * resultTarget.width * resultTarget.height);
+					// read back
+					var resultTextureFormat = resultTarget.texture.format;
+					resultTarget.texture.format = THREE.RGBAFormat; // format for readback only!
+					renderer.readRenderTargetPixels(resultTarget, 0, 0, resultTarget.width, resultTarget.height, resultBuffer);
+					resultTarget.texture.format = resultTextureFormat; // reset to actual format!
+					// success; todo: additional checks?
+					resultData = {
+						width: resultTarget.width,
+						height: resultTarget.height,
+						bytes: resultBuffer
+					 };
+				}
+				else
+					throw 'not ready, still loading';
+				return resultData;
+			}
 			function outputFor(texture) {
 				var parameters = {
 					format: THREE.RGBAFormat,
-					type: THREE.HalfFloatType,
+					type: THREE.FloatType,
 					minFilter: THREE.NearestFilter,
 					magFilter: THREE.NearestFilter,
 					depthBuffer: false,
 					stencilBuffer: false
 				};
 				renderTarget = new THREE.WebGLRenderTarget( texture.image.width, texture.image.height, parameters );
+				renderTarget.texture.image = renderTarget.texture.image || { width: renderTarget.width, height: renderTarget.height };
 				return renderTarget;
 			}
 			function updateOutputFor(texture, renderTarget) {
@@ -500,12 +550,7 @@
 					wasComplete = complete;
 				}
 			}
-			function render() {
-				renderer.autoClear = true;
-				quad.material = emptyMaterial;
-				renderer.render(scene, camera);
-				renderer.autoClear = false;
-
+			function renderResult() {
 				var resultTexture = null;
 				var resultSize;
 				var imagesMissing = inputImages.length;
@@ -516,7 +561,7 @@
 					--imagesMissing;
 				}
 				// re-weighting stack
-				if (inputImages.length > 1 && resultTexture) {
+				if (resultTexture && inputImages.length > 1) {
 					outputTexture = updateOutputFor(resultTexture, outputTexture);
 					outputBuffer = updateOutputFor(resultTexture, outputBuffer);
 					outputSize = resultSize.clone();
@@ -554,24 +599,47 @@
 						currScale *= gui.cascadeBase;
 					}
 
-					resultTexture = outputTexture;
+					resultTexture = outputTexture.texture;
 					resultSize = outputSize;
 				}
 
+				signalComplete(imagesMissing == 0, function() { return 'loading ' + imagesMissing; });
+
+				return resultTexture;
+			}
+			function setupAdjustmentsPass(resultTexture, gamma) {
+				var resultSize = new THREE.Vector2(resultTexture.image.width, resultTexture.image.height);
+				quad.material = passMaterial;
+				passUniforms.exposure.value = Math.pow(10, gui.exposure-1);
+				passUniforms.gamma.value = gamma;
+				passUniforms.picture.value = resultTexture;
+				passUniforms.size.value = resultSize;
+				passUniforms.offset.value = new THREE.Vector2(0, 0);
+			}
+			function processResult(resultTexture) {
+				outputBuffer = updateOutputFor(resultTexture, outputBuffer);
+				setupAdjustmentsPass(resultTexture, 1.0);
+				renderer.render(scene, camera, outputBuffer, true);
+				return outputBuffer;
+			}
+			function render() {
+				renderer.autoClear = true;
+				quad.material = emptyMaterial;
+				renderer.render(scene, camera);
+				renderer.autoClear = false;
+
+				var resultTexture = renderResult();
 				if (resultTexture) {
-					quad.material = passMaterial;
-					passUniforms.exposure.value = Math.pow(10, gui.exposure-1);
-					passUniforms.gamma.value = gui.gamma;
-					passUniforms.picture.value = resultTexture;
-					passUniforms.size.value = resultSize;
-					passUniforms.offset.value = new THREE.Vector2(windowHalfX, windowHalfY).addScaledVector(resultSize, -.5);
+					setupAdjustmentsPass(resultTexture, gui.gamma);
+					// center
+					passUniforms.offset.value = new THREE.Vector2(windowHalfX, windowHalfY).addScaledVector(passUniforms.size.value, -.5);
+					// move away from GUI
 					var halfGuiWidth = gui.ui.width / 1.85;
 					passUniforms.offset.value.x -= halfGuiWidth * Math.max(Math.min(2 - passUniforms.offset.value.x / halfGuiWidth, 1), 0);
 					passUniforms.offset.value.round(); // don't resample!
+
 					renderer.render(scene, camera);
 				}
-
-				signalComplete(imagesMissing == 0, function() { return 'loading ' + imagesMissing; });
 			}
 		</script>
 	</body>

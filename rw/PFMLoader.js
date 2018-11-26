@@ -81,3 +81,26 @@ THREE.PFMLoader.prototype._parser = function ( buffer ) {
 		type: dataType
 	};
 };
+
+THREE.PFMLoader.prototype.serializeRGBtoPF = function ( image, rgbData ) {
+	var headerString = "PF\n" + image.width + ' ' + image.height + "\n-1.0\n";
+	var headerBytes = new TextEncoder().encode(headerString);
+
+	var rgbElementCount = 3 * image.width * image.height;
+	var rgbaElementCount = 4 * image.width * image.height;
+	
+	if (rgbData.length == rgbaElementCount && rgbData.byteLength == 4 * rgbaElementCount) {
+		var rgbaData = rgbData;
+		rgbData = new Float32Array(rgbElementCount);
+		for (var i = 0; 4*i < rgbaElementCount; ++i) {
+			rgbData[3*i] = rgbaData[4*i];
+			rgbData[3*i+1] = rgbaData[4*i+1];
+			rgbData[3*i+2] = rgbaData[4*i+2];
+		}
+	}
+
+	if (rgbData.byteLength != 4 * rgbElementCount)
+		throw 'Invalid PF data encoding, must be 3-channel 32 bit rgb floating-point data'
+
+	return new Blob([headerBytes, rgbData]);
+}
