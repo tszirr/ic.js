@@ -144,7 +144,7 @@
 					return inputs;
 				var alnum = Array.from(inputs);
 				alnum.sort( function(a, b) { return collator.compare(getName(a), getName(b)); } );
-				var numbered = alnum.map( x => [getName(x).match(/\d+/g), x] );
+				var numbered = alnum.map( x => [getName(x).match(/\d+/g) || [], x] );
 				numbered.sort( function(a, b) { return arrayCompare(a[0], b[0]); } );
 				var sppNumIdx = Math.max(0, Math.min(numbered[0][0].length-1, numbered[numbered.length-1][0].length-2));
 				var cascadeNumIdx = Math.max(sppNumIdx+1, numbered[numbered.length-1][0].length-1);
@@ -265,7 +265,6 @@
 						texture.minFilter = THREE.NearestFilter;
 						texture.magFilter = THREE.NearestFilter;
 						texture.generateMipmaps = false;
-						console.log(texture.flipY + '->' + flipY);
 						texture.flipY = flipY;
 						scope.texture = texture;
 						loaded = true;
@@ -291,9 +290,17 @@
 					}
 					return false;
 				};
+				this.dispose = function() {
+					// prevent delayed loading after dispose
+					this.load = function() { };
+					// memory management!
+					if (this.texture != null)
+						this.texture.dispose();
+				}
 			}
 			function acceptInputs(newInputs) {
 				newInputs = sortInputs(newInputs, function(a) { return a.file.name; });
+				disposeImages = inputImages;
 				inputImages = newInputs;
 				infoText(document.title = inputImages[0].file.name);
 				tutorialAccepted();
@@ -305,6 +312,10 @@
 					gui.rwFolder.open();
 				else
 					gui.rwFolder.close();
+				// memory management!
+				for (img of disposeImages) {
+					img.dispose();
+				}
 			}
 			function loadRemoteInputs(urls) {
 				var newInputs = [];
@@ -322,12 +333,13 @@
 						return function() {
 							var contenttype = req.getResponseHeader("Content-Type");
 							if (!contenttype || !contenttype.includes('text')) {
+								var fileUrl = URL.createObjectURL(req.response);
 								try {
-									var fileUrl = URL.createObjectURL(req.response);
 									scope.load(fileUrl);
 								} catch(err) {
 									window.alert(err);
 								}
+								URL.revokeObjectURL(fileUrl);
 							}
 							else {
 								var reader = new FileReader();
@@ -374,12 +386,13 @@
 						var img = new FileImage(fileName);
 						newInputs.push(img);
 
+						var fileUrl = URL.createObjectURL(fileName);
 						try {
-							var fileUrl = URL.createObjectURL(fileName);
 							img.load(fileUrl);
 						} catch(err) {
 							window.alert(err);
 						}
+						URL.revokeObjectURL(fileUrl);
 					}
 					acceptInputs(newInputs);
 				};
@@ -470,7 +483,11 @@
 					return renderTarget;
 				else {
 					console.log('Updating render target');
-					return outputFor(texture);
+					var o = outputFor(texture);
+					// memory management!
+					if (renderTarget != null)
+						renderTarget.dispose();
+					return o;
 				}
 			}
 			var wasComplete = null;
