@@ -1105,37 +1105,27 @@ THREE.EXRLoader.prototype._parser = function ( buffer ) {
 			for ( var channelID = 0; channelID < EXRHeader.channels.length; channelID ++ ) {
 
 				var cOff = channelOffsets[ EXRHeader.channels[ channelID ].name ];
+				cOff += (EXRHeader.dataWindow.yMax - y_scanline) * width * numChannels;
+				var lOff = offset.value;
 
 				if ( EXRHeader.channels[ channelID ].pixelType === 1 ) {
-
 					// HALF
-					for ( var x = 0; x < width; x ++ ) {
-
-						var val = parseFloat16( bufferDataView, offset );
-
-						byteArray[ ( ( ( height - y_scanline ) * ( width * numChannels ) ) + ( x * numChannels ) ) + cOff ] = val;
-
+					for ( var x = 0; x < width; x++, lOff += INT16_SIZE ) {
+						var val = decodeFloat16( bufferDataView.getUint16(lOff, true) );
+						byteArray[ cOff + x * numChannels ] = val;
 					}
-
 				} else if ( EXRHeader.channels[ channelID ].pixelType === 2 ) {
-
 					// FLOAT
-					for ( var x = 0; x < width; x ++ ) {
-
-						var val = parseFloat32( bufferDataView, offset );
-
-						byteArray[ ( ( ( height - y_scanline ) * ( width * numChannels ) ) + ( x * numChannels ) ) + cOff ] = val;
-
+					for ( var x = 0; x < width; x++, lOff += FLOAT32_SIZE ) {
+						var val = bufferDataView.getFloat32(lOff, true);
+						byteArray[ cOff + x * numChannels ] = val;
 					}
-
 				} else {
-
 					throw 'EXRLoader._parser: unsupported pixelType ' + EXRHeader.channels[ channelID ].pixelType + '. Only pixelType is 1 (HALF) is supported.';
-
 				}
 
+				offset.value = lOff;
 			}
-
 		}
 
 	} else if ( EXRHeader.compression === 'PIZ_COMPRESSION' ) {
