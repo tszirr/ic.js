@@ -1341,8 +1341,9 @@ THREE.EXRLoader.prototype.serializeRGBAtoEXR = function ( image, rgbData ) {
 	}
 	function writeAttributes( buffer, dataView, cursor, header ) {
 		writeAttribute( buffer, dataView, cursor, 'channels', 'chlist', c => writeChlist(buffer, dataView, c, header.channels, header.pixelType) );
-		writeAttribute( buffer, dataView, cursor, 'compression', 'compression', c => writeUint8(dataView, c, header.compression) );
 		writeAttribute( buffer, dataView, cursor, 'dataWindow', 'box2i', c => writeBoxI(dataView, c, header.dataWindow) );
+		writeAttribute( buffer, dataView, cursor, 'compression', 'compression', c => writeUint8(dataView, c, header.compression) );
+		writeAttribute( buffer, dataView, cursor, 'lineOrder', 'lineOrder', c => writeUint8(dataView, c, header.lineOrder) );
 		writeUint8( dataView, cursor, 0 );
 	}
 
@@ -1352,6 +1353,7 @@ THREE.EXRLoader.prototype.serializeRGBAtoEXR = function ( image, rgbData ) {
 		pixelTypeBytes: FLOAT_BYTES, // FLOAT
 		dataWindow: { xMin: 0, xMax: image.width-1, yMin: 0, yMax: image.height-1 },
 		compression: 0, // NO_COMPRESSION
+		lineOrder: 1, // DECREASING_Y
 	};
 	var cursor = { value: 8 };
 	writeAttributes( null, null, cursor, header );
@@ -1387,9 +1389,15 @@ THREE.EXRLoader.prototype.serializeRGBAtoEXR = function ( image, rgbData ) {
 		outputBlobs.push(scanlineHeaderBuffer);
 		cursor.value += scanlineHeaderBuffer.byteLength;
 		// uncompressed block data
-		var uncomrpressedBlockElements = scanlineBlockSize * image.width * header.channels.length;
-		var uncompressedBlock = rgbData.subarray(dataCursor, dataCursor + uncomrpressedBlockElements);
-		dataCursor += uncomrpressedBlockElements;
+		var uncompressedBlockElements = scanlineBlockSize * image.width * header.channels.length;
+		var interleavedBlock = rgbData.subarray(dataCursor, dataCursor + uncompressedBlockElements);
+		var uncompressedBlock = new Float32Array(uncompressedBlockElements);
+		for (var c = 0; c < header.channels.length; c++) {
+			for (var x = 0; x < image.width; x++) {
+				uncompressedBlock[c * image.width + x] = interleavedBlock[x * header.channels.length + c];
+			}
+		}
+		dataCursor += interleavedBlock.length;
 		// data block
 		var blockBuffer = uncompressedBlock;
 		outputBlobs.push( blockBuffer );
