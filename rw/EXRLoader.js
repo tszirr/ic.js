@@ -1350,7 +1350,7 @@ THREE.EXRLoader.prototype.serializeRGBAtoEXR = function ( image, rgbData ) {
 		channels: [ 'R', 'G', 'B', 'A' ],
 		pixelType: 2, // FLOAT
 		pixelTypeBytes: FLOAT_BYTES, // FLOAT
-		dataWindow: { xMin: 0, xMax: image.width+1, yMin: 0, yMax: image.height+1 },
+		dataWindow: { xMin: 0, xMax: image.width-1, yMin: 0, yMax: image.height-1 },
 		compression: 0, // NO_COMPRESSION
 	};
 	var cursor = { value: 8 };
@@ -1387,15 +1387,15 @@ THREE.EXRLoader.prototype.serializeRGBAtoEXR = function ( image, rgbData ) {
 		outputBlobs.push(scanlineHeaderBuffer);
 		cursor.value += scanlineHeaderBuffer.byteLength;
 		// uncompressed block data
-		var uncomrpressedBlockSize = scanlineBlockSize * image.width * header.channels.length * header.pixelTypeBytes;
-		var uncompressedBlock = rgbData.subarray(dataCursor, uncomrpressedBlockSize);
-		dataCursor += uncomrpressedBlockSize;
+		var uncomrpressedBlockElements = scanlineBlockSize * image.width * header.channels.length;
+		var uncompressedBlock = rgbData.subarray(dataCursor, dataCursor + uncomrpressedBlockElements);
+		dataCursor += uncomrpressedBlockElements;
 		// data block
 		var blockBuffer = uncompressedBlock;
 		outputBlobs.push( blockBuffer );
 		cursor.value += blockBuffer.byteLength;
 		// block header information
-		scanlineHeaderBuffer[0] = blockIdx * scanlineBlockSize;
+		scanlineHeaderBuffer[0] = numBlocks - 1 - blockIdx * scanlineBlockSize;
 		scanlineHeaderBuffer[1] = blockBuffer.byteLength;
 	}
 	
