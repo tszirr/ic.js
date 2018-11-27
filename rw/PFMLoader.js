@@ -128,7 +128,7 @@ THREE.PFMLoader.prototype.serializeRGBtoPF = function ( image, rgbData ) {
 		var flippedRgbData = rgbData;
 		rgbData = new Float32Array(rgbElementCount);
 		for (var i = rgbElementCount-rowElementCount, j = 0; j < rgbElementCount; i-=rowElementCount, j+=rowElementCount) {
-			rgbData.set(flippedRgbData.subarray(i, rowElementCount), j)
+			rgbData.set(flippedRgbData.subarray(i, i+rowElementCount), j)
 		}
 	}
 	if (rgbData.byteLength != 4 * rgbElementCount)
