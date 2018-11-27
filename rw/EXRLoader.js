@@ -1176,71 +1176,57 @@ THREE.EXRLoader.prototype._parser = function ( buffer ) {
 
 	} else if ( EXRHeader.compression === 'ZIP_COMPRESSION' ) {
 
-		for ( var scanlineBlockIdx = 0; scanlineBlockIdx < height / scanlineBlockSize; scanlineBlockIdx ++ ) {
+		for ( var scanlineBlockIdx = 0; scanlineBlockIdx < numBlocks; scanlineBlockIdx++ ) {
 
-			var line_no = parseUint32( bufferDataView, offset );
-			var compressed_len = parseUint32( bufferDataView, offset );
+			var y_block = parseUint32( bufferDataView, offset );
+			var compressedLen = parseUint32( bufferDataView, offset );
+			var blockBuffer;
+			{
+				var predArray = pako.inflate(new Uint8Array(buffer, offset.value, compressedLen));
+				offset.value += compressedLen;
 
-			var uInt8Array = pako.inflate(new Uint8Array(buffer, offset.value, compressed_len));
-			offset.value += compressed_len;
-
-			var data_len = uInt8Array.length;
-			// OpenEXR predictor
-			for (var i = 1; i < data_len; i++) {
-				uInt8Array[i] = uInt8Array[i-1] + uInt8Array[i] - 128;
+				var dataSize = predArray.length;
+				var blockBuffer = new Uint8Array(dataSize);
+				// OpenEXR predictor
+				for (var i = 1; i < dataSize; i++) {
+					predArray[i] = predArray[i-1] + predArray[i] - 128;
+				}
+				var data_split = Math.floor((dataSize + 1) / 2);
+				for (var i = 0; 2*i < dataSize; i++)
+					blockBuffer[2*i] = predArray[i];
+				for (var i = 0; 2*i+1 < dataSize; i++)
+					blockBuffer[2*i+1] = predArray[data_split+i];
 			}
-			var tmpBuffer = new Uint8Array(data_len);
-			var data_split = Math.floor((data_len + 1) / 2);
-			for (var i = 0; 2*i < data_len; i++)
-				tmpBuffer[2*i] = uInt8Array[i];
-			for (var i = 0; 2*i+1 < data_len; i++)
-				tmpBuffer[2*i+1] = uInt8Array[data_split+i];
 
-			var tmpBufferH = new Uint16Array( tmpBuffer.buffer );
-			var tmpBufferF = new Float32Array( tmpBuffer.buffer );
+			for ( var y_local = 0; y_local < scanlineBlockSize; y_local++ ) {
 
-			for ( var line_y = 0; line_y < scanlineBlockSize; line_y ++ ) {
-
-				for ( var channelID = 0; channelID < EXRHeader.channels.length; channelID ++ ) {
+				for ( var channelID = 0; channelID < EXRHeader.channels.length; channelID++ ) {
 
 					var cOff = channelOffsets[ EXRHeader.channels[ channelID ].name ];
+					var y_global = EXRHeader.dataWindow.yMax - y_block;
+					y_global -= y_local; // todo: what about decreasing Y, inside block?
+					cOff += y_global * width * numChannels;
+					var lOff = channelID * width + y_local * width * numChannels;
 
 					if ( EXRHeader.channels[ channelID ].pixelType === 1 ) {
-
+						var halfBuffer = new Uint16Array( blockBuffer.buffer );
 						// HALF
-						for ( var x = 0; x < width; x ++ ) {
-
-							var val = decodeFloat16( tmpBufferH[ ( channelID * width ) + ( line_y * width * numChannels ) + x ] );
-
-							var true_y = line_y + ( scanlineBlockIdx * scanlineBlockSize );
-
-							byteArray[ ( ( ( height - true_y ) * ( width * numChannels ) ) + ( x * numChannels ) ) + cOff ] = val;
-
+						for ( var x = 0; x < width; x++, lOff++ ) {
+							var val = decodeFloat16( halfBuffer[ lOff ] );
+							byteArray[ cOff + x * numChannels ] = val;
 						}
-
 					} else if ( EXRHeader.channels[ channelID ].pixelType === 2 ) {
-
+						var floatBuffer = new Float32Array( blockBuffer.buffer );
 						// FLOAT
-						for ( var x = 0; x < width; x ++ ) {
-
-							var val = tmpBufferF[ ( channelID * width ) + ( line_y * width * numChannels ) + x ];
-
-							var true_y = line_y + ( scanlineBlockIdx * scanlineBlockSize );
-
-							byteArray[ ( ( ( height - true_y ) * ( width * numChannels ) ) + ( x * numChannels ) ) + cOff ] = val;
-
+						for ( var x = 0; x < width; x++, lOff++ ) {
+							var val = floatBuffer[ lOff ];
+							byteArray[ cOff + x * numChannels ] = val;
 						}
-
 					} else {
-
 						throw 'EXRLoader._parser: unsupported pixelType ' + EXRHeader.channels[ channelID ].pixelType + '. Only pixelType is 1 (HALF) and 2 (FLOAT) is supported.';
-
 					}
-
 				}
-
 			}
-
 		}
 
 	} else {
