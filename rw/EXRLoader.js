@@ -1258,3 +1258,133 @@ THREE.EXRLoader.prototype._parser = function ( buffer ) {
 	};
 
 };
+
+THREE.EXRLoader.prototype.serializeRGBAtoEXR = function ( image, rgbData ) {
+	var outputBlobs = [];
+
+	var HALF_BYTES = 2;
+	var FLOAT_BYTES = 4;
+	var UINT_BYTES = 4;
+	var ULONG_BYTES = 8;
+
+	function encode_utf8(s) {
+		if (TextEncoder)
+			return new TextEncoder().encode(s);
+		else {
+			var chars = unescape(encodeURIComponent(s));
+			var buf = new Uint8Array(chars.length);
+			for (var i = 0; i < chars.length; i++) {
+				buf[i] = chars.charCodeAt(i);
+			}
+			return buf;
+		}
+	}
+
+	function writeUint8( dataView, cursor, value ) {
+		if (dataView)
+			dataView.setUint8( cursor.value, value, true );
+		cursor.value += 1;
+	}
+	function writeUint32( dataView, cursor, value ) {
+		if (dataView)
+			dataView.setUint32( cursor.value, value, true );
+		cursor.value += UINT_BYTES;
+	}
+	function writeNullTerminatedString( buffer, dataView, cursor, value ) {
+		value = encode_utf8( value );
+		if (buffer)
+			new Uint8Array( buffer ).set( value, cursor.value );
+		cursor.value += value.length;
+		writeUint8( dataView, cursor, 0 );
+	}
+	
+	function writeBoxI( buffer, dataView, cursor, dataWnd ) {
+		writeUint32( dataView, cursor, value.xMin );
+		writeUint32( dataView, cursor, value.yMin );
+		writeUint32( dataView, cursor, value.xMax );
+		writeUint32( dataView, cursor, value.yMax );
+	}
+	function writeChlist( buffer, dataView, cursor, channels, pixelType ) {
+		for (var channel of channels) {
+			writeNullTerminatedString( buffer, cursor, channel );
+			writeUint32( dataView, cursor, pixelType );
+			writeUint8( dataView, cursor, 1 ); // pLinear
+			writeUint8( dataView, cursor, 0 ); // reserved
+			writeUint8( dataView, cursor, 0 ); // reserved
+			writeUint8( dataView, cursor, 0 ); // reserved
+			writeUint32( dataView, cursor, 1 ); // xSampling
+			writeUint32( dataView, cursor, 1 ); // ySampling
+		}
+		writeUint8( dataView, cursor, 0 ); // terminate
+	}
+	function writeAttribute( buffer, dataView, cursor, name, type, writer ) {
+		writeNullTerminatedString( buffer, cursor, name );
+		writeNullTerminatedString( buffer, cursor, type );
+		var sizeMarker = cursor.value;
+		writeUint32( dataView, cursor, 0 ); // size, tbd
+		var valueMarker = cursor.value;
+		writer(cursor);
+		writeUint32( dataView, { value: sizeMarker }, cursor.value - valueMarker ); // size
+	}
+	function writeAttributes( buffer, dataView, cursor, header ) {
+		writeAttribute( buffer, dataView, cursor, 'channels', c => writeChlist(buffer, dataView, c, header.channels, header.pixelType) );
+		writeAttribute( buffer, dataView, cursor, 'compression', c => writeUint8(buffer, dataView, c, header.compression) );
+		writeAttribute( buffer, dataView, cursor, 'dataWindow', c => writeBoxI(buffer, dataView, c, header.dataWindow) );
+		writeUint8( dataView, cursor, 0 );
+	}
+
+	var header = {
+		channels: [ 'R', 'G', 'B', 'A' ],
+		pixelType: 2, // FLOAT
+		pixelTypeBytes: FLOAT_BYTES, // FLOAT
+		dataWindow: { xMin: 0, xMax: image.width+1, yMin: 0, yMax: image.height+1 },
+		compression: 0, // NO_COMPRESSION
+	};
+	var cursor = { value: 8 };
+	writeAttributes( null, null, cursor, header );
+	var headerSize = cursor.value;
+	{
+		var buffer = new ArrayBuffer(headerSize);
+		var dataView = new bufferDataView(buffer);
+		
+		cursor.value = 0;
+		writeUint32( dataView, cursor, 0x01312F76 ); // magic number
+		writeUint32( dataView, cursor, 0 ); // mask
+		dataView.setUint8( 4, 2, true ); // version
+	
+		writeAttributes( buffer, dataView, cursor, header );
+		outputBlobs.push(buffer);
+	}
+
+	// scanline table
+	var scanlineBlockSize = 1;
+	var numBlocks = Math.ceil(image.height / scanlineBlockSize);
+	var offsetTableBuffer = new Uint32Array( numBlocks * (ULONG_BYTES / UINT_BYTES) );
+	outputBlobs.push(offsetTableBuffer);
+	cursor.value += offsetTableBuffer.byteLength;
+
+	// data
+	var dataCursor = 0;
+	for (var blockIdx = 0; blockIdx < numBlocks; blockIdx++) {
+		// offset table entry
+		offsetTableBuffer[2*blockIdx+0] = cursor.value;
+		offsetTableBuffer[2*blockIdx+1] = 0;
+		// block header storage
+		var scanlineHeaderBuffer = new Uint32Array(2);
+		outputBlobs.push(scanlineHeaderBuffer);
+		cursor.value += scanlineHeaderBuffer.byteLength;
+		// uncompressed block data
+		var uncomrpressedBlockSize = scanlineBlockSize * image.width * header.channels.length * header.pixelTypeBytes;
+		var uncompressedBlock = rgbData.subarray(dataCursor, uncomrpressedBlockSize);
+		dataCursor += uncomrpressedBlockSize;
+		// data block
+		var blockBuffer = uncompressedBlock;
+		outputBlobs.push( blockBuffer );
+		cursor.value += blockBuffer.byteLength;
+		// block header information
+		scanlineHeaderBuffer[0] = blockIdx * scanlineBlockSize;
+		scanlineHeaderBuffer[1] = blockBuffer.byteLength;
+	}
+	
+	return new Blob(outputBlobs);
+}
