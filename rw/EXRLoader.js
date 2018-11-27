@@ -760,6 +760,15 @@ THREE.EXRLoader.prototype._parser = function ( buffer ) {
 
 	}
 
+	function decode_utf8( uintBuffer, offset, endOffset ) {
+		if (TextDecoder)
+			return new TextDecoder().decode(
+				uintBuffer.slice( offset, endOffset )
+			)
+		else
+			return decodeURIComponent(escape(String.fromCharCode( uintBuffer.subarray( offset, endOffset ).values() )));
+	}
+
 	function parseNullTerminatedString( buffer, offset ) {
 
 		var uintBuffer = new Uint8Array( buffer );
@@ -771,9 +780,7 @@ THREE.EXRLoader.prototype._parser = function ( buffer ) {
 
 		}
 
-		var stringValue = new TextDecoder().decode(
-			uintBuffer.slice( offset.value, offset.value + endOffset )
-		);
+		var stringValue = decode_utf8( uintBuffer, offset.value, offset.value + endOffset );
 
 		offset.value = offset.value + endOffset + 1;
 
@@ -783,9 +790,7 @@ THREE.EXRLoader.prototype._parser = function ( buffer ) {
 
 	function parseFixedLengthString( buffer, offset, size ) {
 
-		var stringValue = new TextDecoder().decode(
-			new Uint8Array( buffer ).slice( offset.value, offset.value + size )
-		);
+		var stringValue = decode_utf8( new Uint8Array( buffer ), offset.value, offset.value + size );
 
 		offset.value = offset.value + size;
 
@@ -795,7 +800,7 @@ THREE.EXRLoader.prototype._parser = function ( buffer ) {
 
 	function parseUlong( dataView, offset ) {
 
-		var uLong = dataView.getUint32(offset.value+1, true);
+		var uLong = dataView.getUint32(offset.value, true);
 
 		offset.value = offset.value + ULONG_SIZE;
 

@@ -14,15 +14,21 @@ THREE.PFMLoader.prototype._parser = function ( buffer ) {
 
 	var charBuffer = new Uint8Array( buffer );
 	var cursor = { value: 0 };
-
+	
+	function decode_utf8( uintBuffer, offset, endOffset ) {
+		if (TextDecoder)
+			return new TextDecoder().decode(
+				uintBuffer.slice( offset, endOffset )
+			)
+		else
+			return decodeURIComponent(escape(String.fromCharCode( uintBuffer.subarray( offset, endOffset ).values() )));
+	}
 	function parseString( uintBuffer, cursor ) {
 		var endOffset = cursor.value;
 		while ( uintBuffer[ endOffset ] > 32 ) {
 			endOffset++;
 		}
-		var stringValue = new TextDecoder().decode(
-			uintBuffer.slice( cursor.value, endOffset )
-		);
+		var stringValue = decode_utf8( uintBuffer, cursor.value, endOffset );
 		cursor.value = endOffset + 1;
 		return stringValue;
 	}
@@ -83,8 +89,21 @@ THREE.PFMLoader.prototype._parser = function ( buffer ) {
 };
 
 THREE.PFMLoader.prototype.serializeRGBtoPF = function ( image, rgbData ) {
+	function encode_utf8(s) {
+		if (TextEncoder)
+			return new TextEncoder().encode(s);
+		else {
+			var chars = unescape(encodeURIComponent(s));
+			var buf = new Uint8Array(chars.length);
+			for (var i = 0; i < chars.length; i++) {
+				buf[i] = chars.charCodeAt(i);
+			}
+			return buf;
+		}
+	}
+
 	var headerString = "PF\n" + image.width + ' ' + image.height + "\n-1.0\n";
-	var headerBytes = new TextEncoder().encode(headerString);
+	var headerBytes = encode_utf8(headerString);
 
 	var rowElementCount = 3 * image.width;
 	var rgbElementCount = rowElementCount * image.height;
