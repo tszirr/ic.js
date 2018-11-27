@@ -303,16 +303,23 @@
 				newInputs = sortInputs(newInputs, function(a) { return a.file.name; });
 				disposeImages = inputImages;
 				inputImages = newInputs;
-				infoText(document.title = inputImages[0].file.name);
-				tutorialAccepted();
-				if (inputImages[0].spp) {
-					gui.spp = inputImages[0].spp;
-					console.log('detected ' + gui.spp + 'spp');
+				// ui
+				{
+					if (inputImages[0].spp) {
+						gui.spp = inputImages[0].spp;
+						console.log('detected ' + gui.spp + 'spp');
+					}
+					if (inputImages.length > 1)
+						gui.rwFolder.open();
+					else
+						gui.rwFolder.close();
+					// document
+					infoText(document.title = inputImages[0].file.name);
+					var filePath = inputImages[0].file.name.split('/');
+					var fileExtended = filePath[filePath.length-1].split('.');
+					gui.outputName = fileExtended[Math.max(fileExtended.length-2, 0)];
 				}
-				if (inputImages.length > 1)
-					gui.rwFolder.open();
-				else
-					gui.rwFolder.close();
+				tutorialAccepted();
 				// memory management!
 				for (img of disposeImages) {
 					img.dispose();
@@ -403,14 +410,17 @@
 				this.ui.add(this, 'loadFiles').name('Load EXR/PFM/PPM');
 
 				var outputArea = document.getElementById('output-area');
+				var saveFolder = this.ui.addFolder('Save');
+				this.outputName = 'Untitled';
+				saveFolder.add(this, 'outputName').listen();
 				this.saveFile = function() {
 					var result = readBack();
 					try {
 						var a = document.createElement("a");
-						a.download = (inputImages.length > 0 ? inputImages[0].file.name : 'result');
+						a.download = gui.outputName + '.pfm';
+						a.type = 'application/octet-stream';
 						var resultFile = new THREE.PFMLoader().serializeRGBtoPF(result, result.bytes);
 						a.href = URL.createObjectURL(resultFile);
-						a.type = 'application/octet-stream';
 						try {
 							outputArea.appendChild(a);
 							a.click();
@@ -426,7 +436,7 @@
 						window.alert(err);
 					}
 				};
-				this.ui.add(this, 'saveFile').name('Save PFM');
+				saveFolder.add(this, 'saveFile').name('PFM');
 
 				this.exampleFolder = this.ui.addFolder('Examples');
 				this.exampleFolder.open();
