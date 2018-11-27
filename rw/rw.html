@@ -412,7 +412,7 @@
 				var outputArea = document.getElementById('output-area');
 				var saveFolder = this.ui.addFolder('Save');
 				this.outputName = 'Untitled';
-				saveFolder.add(this, 'outputName').listen();
+				saveFolder.add(this, 'outputName').name('Name').listen();
 				this.saveFile = function() {
 					var result = readBack();
 					try {
@@ -436,7 +436,7 @@
 						window.alert(err);
 					}
 				};
-				saveFolder.add(this, 'saveFile').name('PFM');
+				saveFolder.add(this, 'saveFile').name('Write PFM');
 
 				this.exampleFolder = this.ui.addFolder('Examples');
 				this.exampleFolder.open();
