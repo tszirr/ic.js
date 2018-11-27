@@ -1349,12 +1349,20 @@ THREE.EXRLoader.prototype.serializeRGBAtoEXR = function ( image, rgbData ) {
 
 	var header = {
 		channels: [ 'R', 'G', 'B', 'A' ],
-		pixelType: 2, // FLOAT
-		pixelTypeBytes: FLOAT_BYTES, // FLOAT
 		dataWindow: { xMin: 0, xMax: image.width-1, yMin: 0, yMax: image.height-1 },
 		compression: 0, // NO_COMPRESSION
 		lineOrder: 1, // DECREASING_Y
 	};
+
+	var rgbChannelCount = Math.round( rgbData.length / (image.width * image.height) );
+	if (rgbData instanceof Float32Array && rgbData.length == image.width * image.height * rgbChannelCount) {
+		header.channels.length = Math.min(rgbChannelCount, header.channels.length);
+		header.pixelType = 2; // FLOAT
+		header.pixelTypeBytes = FLOAT_BYTES; // FLOAT
+	}
+	else
+		throw 'Invalid PF data encoding, must be (up to) 4-channel 32-bit floating-point data';
+
 	var cursor = { value: 8 };
 	writeAttributes( null, null, cursor, header );
 	var headerSize = cursor.value;
@@ -1389,12 +1397,11 @@ THREE.EXRLoader.prototype.serializeRGBAtoEXR = function ( image, rgbData ) {
 		outputBlobs.push(scanlineHeaderBuffer);
 		cursor.value += scanlineHeaderBuffer.byteLength;
 		// uncompressed block data
-		var uncompressedBlockElements = scanlineBlockSize * image.width * header.channels.length;
-		var interleavedBlock = rgbData.subarray(dataCursor, dataCursor + uncompressedBlockElements);
-		var uncompressedBlock = new Float32Array(uncompressedBlockElements);
+		var interleavedBlock = rgbData.subarray(dataCursor, dataCursor + scanlineBlockSize * image.width * rgbChannelCount);
+		var uncompressedBlock = new Float32Array(scanlineBlockSize * image.width * header.channels.length);
 		for (var c = 0; c < header.channels.length; c++) {
 			for (var x = 0; x < image.width; x++) {
-				uncompressedBlock[c * image.width + x] = interleavedBlock[x * header.channels.length + c];
+				uncompressedBlock[c * image.width + x] = interleavedBlock[x * rgbChannelCount + c];
 			}
 		}
 		dataCursor += interleavedBlock.length;
