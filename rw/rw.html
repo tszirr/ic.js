@@ -98,9 +98,13 @@
 		<script src="EXRLoader.js"></script>
 		<script src="PFMLoader.js"></script>
 		<script>
-			var imageLoaders = [
-				{ formats: ['exr'], loader: new THREE.EXRLoader(), flipY: false },
-				{ formats: ['pfm', 'ppm'], loader: new THREE.PFMLoader(), flipY: true },
+			var imageLoaders = {
+				exr: { formats: ['exr'], loader: new THREE.EXRLoader(), flipY: false },
+				pfm: { formats: ['pfm', 'ppm'], loader: new THREE.PFMLoader(), flipY: true },
+			};
+			var imageWriters = [
+				{ format: 'exr', write: imageLoaders.exr.loader.serializeRGBAtoEXR.bind(imageLoaders.exr.loader) },
+				{ format: 'pfm', write: imageLoaders.pfm.loader.serializeRGBtoPF.bind(imageLoaders.pfm.loader) },
 			];
 		</script>
 
@@ -271,7 +275,7 @@
 						loaded = true;
 					}
 
-					for (var table of imageLoaders) {
+					for (var table of Object.values(imageLoaders)) {
 						for (var format of table.formats) {
 							if (this.file.name.endsWith(format)) {
 								flipY = table.flipY;
@@ -280,7 +284,7 @@
 							}
 						}
 					}
-					for (var table of imageLoaders) {
+					for (var table of Object.values(imageLoaders)) {
 						try {
 							flipY = table.flipY;
 							table.loader.load( data, textureSetup );
@@ -386,7 +390,7 @@
 
 				var scope = this;
 
-				var handleFileSelect = function(evt) {
+				function handleFileSelect(evt) {
 					if (evt.target.files.length < 1)
 						return;
 					var newInputs = [];
@@ -413,13 +417,13 @@
 				var saveFolder = this.ui.addFolder('Save');
 				this.outputName = 'Untitled';
 				saveFolder.add(this, 'outputName').name('Name').listen();
-				this.saveFile = function() {
-					var result = readBack();
+				this.saveFile = function(writer) {
 					try {
+						var result = readBack();
+						var resultFile = writer.write(result, result.bytes);
 						var a = document.createElement("a");
-						a.download = gui.outputName + '.pfm';
+						a.download = this.outputName + '.' + writer.format;
 						a.type = 'application/octet-stream';
-						var resultFile = new THREE.PFMLoader().serializeRGBtoPF(result, result.bytes);
 						a.href = URL.createObjectURL(resultFile);
 						try {
 							outputArea.appendChild(a);
@@ -436,7 +440,11 @@
 						window.alert(err);
 					}
 				};
-				saveFolder.add(this, 'saveFile').name('Write PFM');
+				for (var writer of imageWriters) {
+					var writerGuiAttribute = 'saveFile_' + writer.format;
+					this[writerGuiAttribute] = function() { var fixedWriter = writer; return function() { scope.saveFile(fixedWriter); } }();
+					saveFolder.add(this, writerGuiAttribute).name('Write ' + writer.format.toUpperCase());
+				}
 
 				this.exampleFolder = this.ui.addFolder('Examples');
 				this.exampleFolder.open();
@@ -505,8 +513,8 @@
 			}
 			function readBack() {
 				var resultData = null;
-				if (wasComplete) {
-					var imgTexture = renderResult();
+				var imgTexture = renderResult();
+				if (imgTexture && wasComplete) {
 					var resultTarget = processResult(imgTexture);
 					var resultBuffer = new Float32Array(4 * resultTarget.width * resultTarget.height);
 					// read back

@@ -1117,6 +1117,17 @@ THREE.EXRLoader.prototype._parser = function ( buffer ) {
 
 					}
 
+				} else if ( EXRHeader.channels[ channelID ].pixelType === 2 ) {
+
+					// FLOAT
+					for ( var x = 0; x < width; x ++ ) {
+
+						var val = parseFloat32( bufferDataView, offset );
+
+						byteArray[ ( ( ( height - y_scanline ) * ( width * numChannels ) ) + ( x * numChannels ) ) + cOff ] = val;
+
+					}
+
 				} else {
 
 					throw 'EXRLoader._parser: unsupported pixelType ' + EXRHeader.channels[ channelID ].pixelType + '. Only pixelType is 1 (HALF) is supported.';
@@ -1290,15 +1301,17 @@ THREE.EXRLoader.prototype.serializeRGBAtoEXR = function ( image, rgbData ) {
 			dataView.setUint32( cursor.value, value, true );
 		cursor.value += UINT_BYTES;
 	}
-	function writeNullTerminatedString( buffer, dataView, cursor, value ) {
+	function writeNullTerminatedString( buffer, cursor, value ) {
 		value = encode_utf8( value );
-		if (buffer)
-			new Uint8Array( buffer ).set( value, cursor.value );
-		cursor.value += value.length;
-		writeUint8( dataView, cursor, 0 );
+		if (buffer) {
+			var byteBuffer = new Uint8Array( buffer )
+			byteBuffer.set( value, cursor.value );
+			byteBuffer[cursor.value + value.length] = 0;
+		}
+		cursor.value += value.length+1;
 	}
 	
-	function writeBoxI( buffer, dataView, cursor, dataWnd ) {
+	function writeBoxI( dataView, cursor, value ) {
 		writeUint32( dataView, cursor, value.xMin );
 		writeUint32( dataView, cursor, value.yMin );
 		writeUint32( dataView, cursor, value.xMax );
@@ -1327,9 +1340,9 @@ THREE.EXRLoader.prototype.serializeRGBAtoEXR = function ( image, rgbData ) {
 		writeUint32( dataView, { value: sizeMarker }, cursor.value - valueMarker ); // size
 	}
 	function writeAttributes( buffer, dataView, cursor, header ) {
-		writeAttribute( buffer, dataView, cursor, 'channels', c => writeChlist(buffer, dataView, c, header.channels, header.pixelType) );
-		writeAttribute( buffer, dataView, cursor, 'compression', c => writeUint8(buffer, dataView, c, header.compression) );
-		writeAttribute( buffer, dataView, cursor, 'dataWindow', c => writeBoxI(buffer, dataView, c, header.dataWindow) );
+		writeAttribute( buffer, dataView, cursor, 'channels', 'chlist', c => writeChlist(buffer, dataView, c, header.channels, header.pixelType) );
+		writeAttribute( buffer, dataView, cursor, 'compression', 'compression', c => writeUint8(dataView, c, header.compression) );
+		writeAttribute( buffer, dataView, cursor, 'dataWindow', 'box2i', c => writeBoxI(dataView, c, header.dataWindow) );
 		writeUint8( dataView, cursor, 0 );
 	}
 
@@ -1345,7 +1358,7 @@ THREE.EXRLoader.prototype.serializeRGBAtoEXR = function ( image, rgbData ) {
 	var headerSize = cursor.value;
 	{
 		var buffer = new ArrayBuffer(headerSize);
-		var dataView = new bufferDataView(buffer);
+		var dataView = new DataView(buffer);
 		
 		cursor.value = 0;
 		writeUint32( dataView, cursor, 0x01312F76 ); // magic number
