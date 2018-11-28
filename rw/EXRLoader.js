@@ -265,7 +265,8 @@ THREE.EXRLoader.prototype._parser = function ( buffer ) {
 	function parseLineOrder( dataView, offset ) {
 
 		var lineOrders = [
-			'INCREASING_Y'
+			'INCREASING_Y',
+			'DECREASING_Y'
 		];
 
 		var lineOrder = parseUint8( dataView, offset );
@@ -470,7 +471,7 @@ THREE.EXRLoader.prototype._parser = function ( buffer ) {
 			}
 		}
 
-	} else if ( EXRHeader.compression === 'ZIP_COMPRESSION' ) {
+	} else if ( EXRHeader.compression === 'ZIP_COMPRESSION' && pako ) {
 
 		for ( var scanlineBlockIdx = 0; scanlineBlockIdx < numBlocks; scanlineBlockIdx++ ) {
 
@@ -707,7 +708,7 @@ THREE.EXRLoader.prototype.serializeRGBAtoEXR = function ( image, rgbData, refHea
 		outputBlobs.push( blockBuffer );
 		cursor.value += blockBuffer.byteLength;
 		// block header information
-		scanlineHeaderBuffer[0] = numBlocks - 1 - blockIdx * scanlineBlockSize;
+		scanlineHeaderBuffer[0] = image.height - 1 - blockIdx * scanlineBlockSize;
 		scanlineHeaderBuffer[1] = blockBuffer.byteLength;
 	}
 	
