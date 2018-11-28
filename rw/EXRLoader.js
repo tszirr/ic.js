@@ -398,7 +398,10 @@ THREE.EXRLoader.prototype._parser = function ( buffer ) {
 		B: 2, Z: 2,
 		A: 3
 	};
-	var channelBytes = EXRHeader.channels[ channelID ].pixelType * BYTES_PER_HALF;
+	var channelBytes = 0;
+	for ( var ch of EXRHeader.channels ) {
+		channelBytes += ch.pixelType * BYTES_PER_HALF;
+	}
 
 	if ( EXRHeader.compression === 'NO_COMPRESSION' ) {
 
@@ -444,7 +447,7 @@ THREE.EXRLoader.prototype._parser = function ( buffer ) {
 			var compressedLen = parseUint32( bufferDataView, offset );
 
 			var fractionalBlockSize = Math.min(scanlineBlockSize, EXRHeader.dataWindow.yMax - y_block + 1);
-			var uncompressedLen = fractionalBlockSize * width * EXRHeader.channels.length * channelBytes;
+			var uncompressedLen = fractionalBlockSize * width * channelBytes;
 
 			var decodeOffset = { value: offset.value };
 			offset.value += compressedLen;
@@ -496,7 +499,7 @@ THREE.EXRLoader.prototype._parser = function ( buffer ) {
 			var compressedLen = parseUint32( bufferDataView, offset );
 
 			var fractionalBlockSize = Math.min(scanlineBlockSize, EXRHeader.dataWindow.yMax - y_block + 1);
-			var uncompressedLen = fractionalBlockSize * width * EXRHeader.channels.length * channelBytes;
+			var uncompressedLen = fractionalBlockSize * width * channelBytes;
 
 			var blockBuffer;
 			if (compressedLen < uncompressedLen)
