@@ -10,7 +10,6 @@
 				margin: 0px;
 				overflow: hidden;
 			}
-			#hiddenInterface { display:none; }
 			a {
 				color: orange;
 				text-decoration: none;
@@ -18,6 +17,7 @@
 			a:hover {
 				color: #0080ff;
 			}
+			#hiddenInterface { display:none; }
 			.dg.ac {
 				z-index:20 !important;
 			}
@@ -33,6 +33,9 @@
 			}
 			#info:hover #print-output {
 				display:block;
+			}
+			.btw-info {
+				color:#bbb;
 			}
 			#print-output {
 				position: relative;
@@ -76,13 +79,18 @@
 	</head>
 	<body>
 
-		<div id="hiddenInterface"><
+		<div id="hiddenInterface">
 			<input id="input-button" type="file" multiple="true" style="visibility:hidden;">
 			<span id="output-area" style="visibility:hidden;"></span>
 		</div>
 
 		<div id="info">
-			<a href="http://threejs.org" target="_blank" rel="noopener">three.js</a> - Reweighted Monte Carlo
+			<span class="btw-info"><a href="https://github.com/tszirr/ic.js/tree/master/rw" target="_blank" rel="noopener">ic.js</a>
+			uses
+			<a href="http://threejs.org" target="_blank" rel="noopener">three.js</a>
+			<a href="https://github.com/mrdoob/three.js/blob/dev/examples/js/loaders/EXRLoader.js" target="_blank" rel="noopener">EXRLoader.js</a>
+			<a href="http://nodeca.github.io/pako/" target="_blank" rel="noopener">pako.js</a></span>
+			- Reweighted Monte Carlo
 			[ <span id="info-output"></span> ] <span id="print-indicator">Output <i></i>Available</span>
 			<pre id="print-output"></pre>
 		</div>
