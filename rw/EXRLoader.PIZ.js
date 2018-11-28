@@ -468,8 +468,18 @@ THREE.EXRLoader.prototype.PIZReader = function() {
 
 	}
 
+	function wdec16( l, h ) {
+		m = l;
+		d = h;
+		bb = (m - (d >> 1)) & MOD_MASK;
+		aa = (d + bb - A_OFFSET) & MOD_MASK;
+		wdec14Return.a = aa;
+		wdec14Return.b = bb;
+	}
+
 	function wav2Decode( j, buffer, nx, ox, ny, oy, mx ) {
 
+		var wdec = ( mx < (1 << 14) ? wdec14 : wdec16 );
 		var n = ( nx > ny ) ? ny : nx;
 		var p = 1;
 		var p2;
@@ -501,22 +511,22 @@ THREE.EXRLoader.prototype.PIZReader = function() {
 					var p10 = px + oy1;
 					var p11 = p10 + ox1;
 
-					wdec14( buffer[ px + j ], buffer[ p10 + j ] );
+					wdec( buffer[ px + j ], buffer[ p10 + j ] );
 
 					i00 = wdec14Return.a;
 					i10 = wdec14Return.b;
 
-					wdec14( buffer[ p01 + j ], buffer[ p11 + j ] );
+					wdec( buffer[ p01 + j ], buffer[ p11 + j ] );
 
 					i01 = wdec14Return.a;
 					i11 = wdec14Return.b;
 
-					wdec14( i00, i01 );
+					wdec( i00, i01 );
 
 					buffer[ px + j ] = wdec14Return.a;
 					buffer[ p01 + j ] = wdec14Return.b;
 
-					wdec14( i10, i11 );
+					wdec( i10, i11 );
 
 					buffer[ p10 + j ] = wdec14Return.a;
 					buffer[ p11 + j ] = wdec14Return.b;
@@ -527,7 +537,7 @@ THREE.EXRLoader.prototype.PIZReader = function() {
 
 					var p10 = px + oy1;
 
-					wdec14( buffer[ px + j ], buffer[ p10 + j ] );
+					wdec( buffer[ px + j ], buffer[ p10 + j ] );
 
 					i00 = wdec14Return.a;
 					buffer[ p10 + j ] = wdec14Return.b;
@@ -547,7 +557,7 @@ THREE.EXRLoader.prototype.PIZReader = function() {
 
 					var p01 = px + ox1;
 
-					wdec14( buffer[ px + j ], buffer[ p01 + j ] );
+					wdec( buffer[ px + j ], buffer[ p01 + j ] );
 
 					i00 = wdec14Return.a;
 					buffer[ p01 + j ] = wdec14Return.b;
