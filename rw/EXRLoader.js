@@ -436,7 +436,6 @@ THREE.EXRLoader.prototype._parser = function ( buffer ) {
 
 		var pizReader = new this.PIZReader();
 		var uInt8Array = new Uint8Array(buffer);
-		var tmpBuffer = new Uint16Array( scanlineBlockSize * width * EXRHeader.channels.length );
 
 		for ( var scanlineBlockIdx = 0; scanlineBlockIdx < numBlocks; scanlineBlockIdx ++ ) {
 
@@ -444,10 +443,24 @@ THREE.EXRLoader.prototype._parser = function ( buffer ) {
 			var compressedLen = parseUint32( bufferDataView, offset );
 
 			var fractionalBlockSize = Math.min(scanlineBlockSize, EXRHeader.dataWindow.yMax - y_block + 1);
-			var tmpOffset = { value: 0 };
-			pizReader.decompress( tmpBuffer, tmpOffset, fractionalBlockSize * width * EXRHeader.channels.length * BYTES_PER_HALF
-				, uInt8Array, bufferDataView, offset, numChannels, EXRHeader.channels
-				, width, fractionalBlockSize );
+			var uncompressedLen = fractionalBlockSize * width * EXRHeader.channels.length * BYTES_PER_HALF;
+
+			var decodeOffset = { value: offset.value };
+			offset.value += compressedLen;
+
+			var tmpBuffer;
+			if (compressedLen < uncompressedLen) {
+				tmpBuffer = new Uint16Array( scanlineBlockSize * width * EXRHeader.channels.length );
+				var tmpOffset = { value: 0 };
+				pizReader.decompress( tmpBuffer, tmpOffset, tmpBuffer.byteLength
+					, uInt8Array, bufferDataView, decodeOffset, numChannels, EXRHeader.channels
+					, width, fractionalBlockSize );
+			}
+			else
+				tmpBuffer = new Uint16Array( uInt8Array.slice(decodeOffset.value, uncompressedLen) );
+			
+			if (offset.value != decodeOffset.value)
+				console.warn('decoder ended at ' + decodeOffset.value + ', should have ended ' + offset.value);
 
 			for ( var y_local = 0; y_local < fractionalBlockSize; y_local++ ) {
 
