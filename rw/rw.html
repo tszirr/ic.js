@@ -191,7 +191,6 @@
 		<script>
 			var renderer, scene, camera, quad;
 			var inputImages = [];
-			var inputHeader = null;
 			var outputTexture, outputBuffer;
 			var rwMaterial, rwUniforms = {
 				cropOffset: { },
@@ -264,7 +263,7 @@
 			function FileImage(fileName) {
 				this.file = fileName;
 				this.texture = null;
-				this.load = function(data, headerTarget) {
+				this.load = function(data) {
 					var scope = this;
 					var loaded = false;
 					var textureSetup = function ( texture, textureData ) {
@@ -274,8 +273,8 @@
 						texture.generateMipmaps = false;
 						scope.texture = texture;
 						loaded = true;
-						if (headerTarget)
-							headerTarget.value = textureData.header;
+						if (textureData.header)
+							scope.header = textureData.header;
 					}
 
 					for (var table of Object.values(imageLoaders)) {
@@ -343,15 +342,12 @@
 					xhrObj.onload = function () {
 						var scope = img;
 						var req = xhrObj;
-						var retrieveHeader = (newInputs.length == 1 ? {} : null);
 						return function() {
 							var contenttype = req.getResponseHeader("Content-Type");
 							if (!contenttype || !contenttype.includes('text')) {
 								var fileUrl = URL.createObjectURL(req.response);
 								try {
-									scope.load(fileUrl, retrieveHeader);
-									if (retrieveHeader)
-										inputHeader = retrieveHeader.value;
+									scope.load(fileUrl);
 								} catch(err) {
 									window.alert(err);
 								}
@@ -426,7 +422,7 @@
 				this.saveFile = function(writer) {
 					try {
 						var result = readBack(writer.knownRowOrder ? scope.loadFlipped : scope.reverseRowOrder);
-						var resultFile = writer.write(result, result.bytes, inputHeader);
+						var resultFile = writer.write(result, result.bytes, inputImages[0].header);
 						var a = document.createElement("a");
 						a.download = this.outputName + '.' + writer.format;
 						a.type = 'application/octet-stream';
