@@ -331,7 +331,7 @@ THREE.EXRLoader.prototype._parser = function ( buffer ) {
 
 	var bufferDataView = new DataView(buffer);
 
-	var EXRHeader = {};
+	var EXRHeader = { headerSource: 'exr' };
 
 	var magic = bufferDataView.getUint32( 0, true );
 	var versionByteZero = bufferDataView.getUint8( 4, true );
@@ -447,11 +447,13 @@ THREE.EXRLoader.prototype._parser = function ( buffer ) {
 
 			for ( var y_local = 0; y_local < scanlineBlockSize; y_local++ ) {
 
+				var y_global = EXRHeader.dataWindow.yMax - y_block;
+				y_global -= y_local; // todo: what about decreasing Y, inside block?
+				if (y_global < 0 || y_global >= height) continue;
+
 				for ( var channelID = 0; channelID < EXRHeader.channels.length; channelID ++ ) {
 
 					var cOff = channelOffsets[ EXRHeader.channels[ channelID ].name ];
-					var y_global = EXRHeader.dataWindow.yMax - y_block;
-					y_global -= y_local; // todo: what about decreasing Y, inside block?
 					cOff += y_global * width * numChannels;
 					var lOff = channelID * scanlineBlockSize * width + y_local * width;
 
@@ -494,11 +496,13 @@ THREE.EXRLoader.prototype._parser = function ( buffer ) {
 
 			for ( var y_local = 0; y_local < scanlineBlockSize; y_local++ ) {
 
+				var y_global = EXRHeader.dataWindow.yMax - y_block;
+				y_global -= y_local; // todo: what about decreasing Y, inside block?
+				if (y_global < 0 || y_global >= height) continue;
+
 				for ( var channelID = 0; channelID < EXRHeader.channels.length; channelID++ ) {
 
 					var cOff = channelOffsets[ EXRHeader.channels[ channelID ].name ];
-					var y_global = EXRHeader.dataWindow.yMax - y_block;
-					y_global -= y_local; // todo: what about decreasing Y, inside block?
 					cOff += y_global * width * numChannels;
 					var lOff = channelID * width + y_local * width * numChannels;
 
@@ -540,7 +544,7 @@ THREE.EXRLoader.prototype._parser = function ( buffer ) {
 
 };
 
-THREE.EXRLoader.prototype.serializeRGBAtoEXR = function ( image, rgbData ) {
+THREE.EXRLoader.prototype.serializeRGBAtoEXR = function ( image, rgbData, refHeader ) {
 	var outputBlobs = [];
 
 	var HALF_BYTES = 2;
@@ -570,6 +574,11 @@ THREE.EXRLoader.prototype.serializeRGBAtoEXR = function ( image, rgbData ) {
 		if (dataView)
 			dataView.setUint32( cursor.value, value, true );
 		cursor.value += UINT_BYTES;
+	}
+	function writeFloat32( dataView, cursor, value ) {
+		if (dataView)
+			dataView.setFloat32( cursor.value, value, true );
+		cursor.value += FLOAT_BYTES;
 	}
 	function writeNullTerminatedString( buffer, cursor, value ) {
 		value = encode_utf8( value );
@@ -602,7 +611,7 @@ THREE.EXRLoader.prototype.serializeRGBAtoEXR = function ( image, rgbData ) {
 	}
 	function writeAttribute( buffer, dataView, cursor, name, type, writer ) {
 		writeNullTerminatedString( buffer, cursor, name );
-		writeNullTerminatedString( buffer, cursor, type );
+		writeNullTerminatedString( buffer, cursor, type || name );
 		var sizeMarker = cursor.value;
 		writeUint32( dataView, cursor, 0 ); // size, tbd
 		var valueMarker = cursor.value;
@@ -612,16 +621,28 @@ THREE.EXRLoader.prototype.serializeRGBAtoEXR = function ( image, rgbData ) {
 	function writeAttributes( buffer, dataView, cursor, header ) {
 		writeAttribute( buffer, dataView, cursor, 'channels', 'chlist', c => writeChlist(buffer, dataView, c, header.channels, header.pixelType) );
 		writeAttribute( buffer, dataView, cursor, 'dataWindow', 'box2i', c => writeBoxI(dataView, c, header.dataWindow) );
-		writeAttribute( buffer, dataView, cursor, 'compression', 'compression', c => writeUint8(dataView, c, header.compression) );
-		writeAttribute( buffer, dataView, cursor, 'lineOrder', 'lineOrder', c => writeUint8(dataView, c, header.lineOrder) );
+		writeAttribute( buffer, dataView, cursor, 'compression', null, c => writeUint8(dataView, c, header.compression) );
+		writeAttribute( buffer, dataView, cursor, 'lineOrder', null, c => writeUint8(dataView, c, header.lineOrder) );
+		writeAttribute( buffer, dataView, cursor, 'pixelAspectRatio', 'float', c => writeFloat32(dataView, c, header.pixelAspectRatio) );
+		writeAttribute( buffer, dataView, cursor, 'displayWindow', 'box2i', c => writeBoxI(dataView, c, header.displayWindow) );
+		writeAttribute( buffer, dataView, cursor, 'screenWindowWidth', 'float', c => writeFloat32(dataView, c, header.screenWindowWidth) );
+		writeAttribute( buffer, dataView, cursor, 'screenWindowCenter', 'v2f', function(c) {
+			writeFloat32(dataView, c, header.screenWindowCenter[0]);
+			writeFloat32(dataView, c, header.screenWindowCenter[1]);
+		} );
 		writeUint8( dataView, cursor, 0 );
 	}
 
+	if (!refHeader)
+		refHeader = { };
 	var header = {
-		channels: [ 'R', 'G', 'B', 'A' ],
-		dataWindow: { xMin: 0, xMax: image.width-1, yMin: 0, yMax: image.height-1 },
+		channels: refHeader.channels || [ 'R', 'G', 'B', 'A' ],
+		dataWindow: refHeader.dataWindow || { xMin: 0, xMax: image.width-1, yMin: 0, yMax: image.height-1 },
 		compression: 0, // NO_COMPRESSION
 		lineOrder: 1, // DECREASING_Y
+		pixelAspectRatio: refHeader.pixelAspectRatio || 1,
+		screenWindowWidth: refHeader.screenWindowWidth || 1,
+		screenWindowCenter: refHeader.screenWindowCenter || [0, 0],
 	};
 
 	var rgbChannelCount = Math.round( rgbData.length / (image.width * image.height) );
@@ -632,6 +653,12 @@ THREE.EXRLoader.prototype.serializeRGBAtoEXR = function ( image, rgbData ) {
 	}
 	else
 		throw 'Invalid PF data encoding, must be (up to) 4-channel 32-bit floating-point data';
+
+	if (header.dataWindow.xMax - header.dataWindow.xMin != image.width-1)
+		header.dataWindow.xMax = header.dataWindow.xMin + image.width-1;
+	if (header.dataWindow.yMax - header.dataWindow.yMin != image.height-1)
+		header.dataWindow.yMax = header.dataWindow.yMin + image.height-1;
+	header.displayWindow = refHeader.displayWindow || header.dataWindow;
 
 	var cursor = { value: 8 };
 	writeAttributes( null, null, cursor, header );
