@@ -2,6 +2,7 @@ uniform vec2 offset;
 uniform vec2 size;
 uniform float exposure;
 uniform float gamma;
+uniform bool flipY;
 
 uniform sampler2D picture;
 
@@ -10,6 +11,9 @@ void main() {
     if (c.x < 0. || c.y < 0. || c.x >= size.x || c.y >= size.y)
         discard;
 
+    if (flipY)
+        c.y = size.y - c.y;
+    
     gl_FragColor = texture2D(picture, c/size, 0.);
     gl_FragColor.xyz *= exposure;
     // todo: wait for three js SRGB framebuffer support

@@ -105,32 +105,18 @@ THREE.PFMLoader.prototype.serializeRGBtoPF = function ( image, rgbData ) {
 	var headerString = "PF\n" + image.width + ' ' + image.height + "\n-1.0\n";
 	var headerBytes = encode_utf8(headerString);
 
-	var rowElementCount = 3 * image.width;
-	var rgbElementCount = rowElementCount * image.height;
-	var rgbaRowElementCount = 4 * image.width;
-	var rgbaElementCount = rgbaRowElementCount * image.height;
-	
-	// todo: don't rotate, flip!
-	// flip row order & extract rgb channels
-	if (rgbData.length == rgbaElementCount && rgbData instanceof Float32Array) {
+	var rgbElementCount = 3 * image.width * image.height;
+
+	if (rgbData.length == 4 * image.width * image.height && rgbData instanceof Float32Array) {
 		var rgbaData = rgbData;
 		rgbData = new Float32Array(rgbElementCount);
-		for (var i = rgbaElementCount-rgbaRowElementCount, j = 0; j < rgbElementCount; i-=2*rgbaRowElementCount) {
-			for (var rowEnd = j+rowElementCount; j < rowEnd; i+=4, j+=3) {
-				rgbData[j] = rgbaData[i];
-				rgbData[j+1] = rgbaData[i+1];
-				rgbData[j+2] = rgbaData[i+2];
-			}
+		for (var i = 0, j = 0; j < rgbElementCount; i+=4, j+=3) {
+			rgbData[j] = rgbaData[i];
+			rgbData[j+1] = rgbaData[i+1];
+			rgbData[j+2] = rgbaData[i+2];
 		}
 	}
-	// flip row order
-	else if (rgbData.length == rgbElementCount && rgbData instanceof Float32Array) {
-		var flippedRgbData = rgbData;
-		rgbData = new Float32Array(rgbElementCount);
-		for (var i = rgbElementCount-rowElementCount, j = 0; j < rgbElementCount; i-=rowElementCount, j+=rowElementCount) {
-			rgbData.set(flippedRgbData.subarray(i, i+rowElementCount), j)
-		}
-	}
+
 	if (rgbData.byteLength != 4 * rgbElementCount)
 		throw 'Invalid PF data encoding, must be 3-channel 32 bit rgb floating-point data'
 

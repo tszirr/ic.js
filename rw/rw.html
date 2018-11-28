@@ -96,15 +96,16 @@
 		
 		<script src="pako_inflate.min.js"></script>
 		<script src="EXRLoader.js"></script>
+		<script src="EXRLoader.PIZ.js"></script>
 		<script src="PFMLoader.js"></script>
 		<script>
 			var imageLoaders = {
-				exr: { formats: ['exr'], loader: new THREE.EXRLoader(), flipY: false },
-				pfm: { formats: ['pfm', 'ppm'], loader: new THREE.PFMLoader(), flipY: true },
+				exr: { formats: ['exr'], loader: new THREE.EXRLoader() },
+				pfm: { formats: ['pfm', 'ppm'], loader: new THREE.PFMLoader() },
 			};
 			var imageWriters = [
-				{ format: 'exr', write: imageLoaders.exr.loader.serializeRGBAtoEXR.bind(imageLoaders.exr.loader) },
-				{ format: 'pfm', write: imageLoaders.pfm.loader.serializeRGBtoPF.bind(imageLoaders.pfm.loader) },
+				{ format: 'exr', write: imageLoaders.exr.loader.serializeRGBAtoEXR.bind(imageLoaders.exr.loader), knownRowOrder: true },
+				{ format: 'pfm', write: imageLoaders.pfm.loader.serializeRGBtoPF.bind(imageLoaders.pfm.loader), knownRowOrder: false },
 			];
 		</script>
 
@@ -208,6 +209,7 @@
 				offset: { },
 				size: { },
 				exposure: { },
+				flipY: { value: false },
 				gamma: { value: 2.2 },
 				picture: { },
 			};
@@ -264,13 +266,11 @@
 				this.load = function(data) {
 					var scope = this;
 					var loaded = false;
-					var flipY;
 					var textureSetup = function ( texture, textureData ) {
 						console.log(scope.file);
 						texture.minFilter = THREE.NearestFilter;
 						texture.magFilter = THREE.NearestFilter;
 						texture.generateMipmaps = false;
-						texture.flipY = flipY;
 						scope.texture = texture;
 						loaded = true;
 					}
@@ -278,7 +278,6 @@
 					for (var table of Object.values(imageLoaders)) {
 						for (var format of table.formats) {
 							if (this.file.name.endsWith(format)) {
-								flipY = table.flipY;
 								table.loader.load( data, textureSetup );
 								return loaded;
 							}
@@ -286,7 +285,6 @@
 					}
 					for (var table of Object.values(imageLoaders)) {
 						try {
-							flipY = table.flipY;
 							table.loader.load( data, textureSetup );
 						}
 						catch (err) {  }
@@ -411,7 +409,9 @@
 				var inputButton = document.getElementById('input-button');
 				inputButton.addEventListener('change', handleFileSelect, false);
 				this.loadFiles = function() { inputButton.click(); };
+				this.loadFlipped = false;
 				this.ui.add(this, 'loadFiles').name('Load EXR/PFM/PPM');
+				this.ui.add(this, 'loadFlipped').name('Flipped');
 
 				var outputArea = document.getElementById('output-area');
 				var saveFolder = this.ui.addFolder('Save');
@@ -419,7 +419,7 @@
 				saveFolder.add(this, 'outputName').name('Name').listen();
 				this.saveFile = function(writer) {
 					try {
-						var result = readBack();
+						var result = readBack(writer.knownRowOrder ? scope.loadFlipped : scope.reverseRowOrder);
 						var resultFile = writer.write(result, result.bytes);
 						var a = document.createElement("a");
 						a.download = this.outputName + '.' + writer.format;
@@ -445,6 +445,8 @@
 					this[writerGuiAttribute] = function() { var fixedWriter = writer; return function() { scope.saveFile(fixedWriter); } }();
 					saveFolder.add(this, writerGuiAttribute).name('Write ' + writer.format.toUpperCase());
 				}
+				this.reverseRowOrder = false;
+				saveFolder.add(this, 'reverseRowOrder').name('Reverse');
 
 				this.exampleFolder = this.ui.addFolder('Examples');
 				this.exampleFolder.open();
@@ -511,11 +513,11 @@
 
 				window.setTimeout(animate, 1000 / 8);
 			}
-			function readBack() {
+			function readBack(flipY) {
 				var resultData = null;
 				var imgTexture = renderResult();
 				if (imgTexture && wasComplete) {
-					var resultTarget = processResult(imgTexture);
+					var resultTarget = processResult(imgTexture, flipY);
 					var resultBuffer = new Float32Array(4 * resultTarget.width * resultTarget.height);
 					// read back
 					var resultTextureFormat = resultTarget.texture.format;
@@ -625,7 +627,7 @@
 
 				return resultTexture;
 			}
-			function setupAdjustmentsPass(resultTexture, gamma) {
+			function setupAdjustmentsPass(resultTexture, gamma, flipY) {
 				var resultSize = new THREE.Vector2(resultTexture.image.width, resultTexture.image.height);
 				quad.material = passMaterial;
 				passUniforms.exposure.value = Math.pow(10, gui.exposure-1);
@@ -633,10 +635,11 @@
 				passUniforms.picture.value = resultTexture;
 				passUniforms.size.value = resultSize;
 				passUniforms.offset.value = new THREE.Vector2(0, 0);
+				passUniforms.flipY.value = flipY;
 			}
-			function processResult(resultTexture) {
+			function processResult(resultTexture, flipY) {
 				outputBuffer = updateOutputFor(resultTexture, outputBuffer);
-				setupAdjustmentsPass(resultTexture, 1.0);
+				setupAdjustmentsPass(resultTexture, 1.0, flipY);
 				renderer.render(scene, camera, outputBuffer, true);
 				return outputBuffer;
 			}
@@ -648,7 +651,7 @@
 
 				var resultTexture = renderResult();
 				if (resultTexture) {
-					setupAdjustmentsPass(resultTexture, gui.gamma);
+					setupAdjustmentsPass(resultTexture, gui.gamma, gui.loadFlipped);
 					// center
 					passUniforms.offset.value = new THREE.Vector2(windowHalfX, windowHalfY).addScaledVector(passUniforms.size.value, -.5);
 					// move away from GUI
