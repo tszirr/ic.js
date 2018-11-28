@@ -729,7 +729,7 @@ THREE.EXRLoader.prototype.PIZReader = function() {
 
 	}
 
-	this.decompress = function( outBuffer, outOffset, uInt8Array, inDataView, inOffset, tmpBufSize, num_channels, exrChannelInfos, dataWidth, num_lines ) {
+	this.decompress = function( outBuffer, outOffset, tmpBufSize, uInt8Array, inDataView, inOffset, num_channels, exrChannelInfos, dataWidth, num_lines ) {
 
 		var bitmap = new Uint8Array( BITMAP_SIZE );
 

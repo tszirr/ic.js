@@ -436,17 +436,18 @@ THREE.EXRLoader.prototype._parser = function ( buffer ) {
 
 		var pizReader = new this.PIZReader();
 		var uInt8Array = new Uint8Array(buffer);
+		var tmpBuffer = new Uint16Array( scanlineBlockSize * width * EXRHeader.channels.length );
 
 		for ( var scanlineBlockIdx = 0; scanlineBlockIdx < numBlocks; scanlineBlockIdx ++ ) {
 
 			var y_block = parseUint32( bufferDataView, offset );
 			var compressedLen = parseUint32( bufferDataView, offset );
 
-			var tmpBuffer = new Uint16Array( scanlineBlockSize * width * EXRHeader.channels.length );
+			var fractionalBlockSize = Math.min(scanlineBlockSize, EXRHeader.dataWindow.yMax - y_block + 1);
 			var tmpOffset = { value: 0 };
-			pizReader.decompress( tmpBuffer, tmpOffset, uInt8Array, bufferDataView, offset, tmpBuffer.byteLength, numChannels, EXRHeader.channels, width, scanlineBlockSize );
+			pizReader.decompress( tmpBuffer, tmpOffset, tmpBuffer.byteLength, uInt8Array, bufferDataView, offset, numChannels, EXRHeader.channels, width, fractionalBlockSize );
 
-			for ( var y_local = 0; y_local < scanlineBlockSize; y_local++ ) {
+			for ( var y_local = 0; y_local < fractionalBlockSize; y_local++ ) {
 
 				var y_global = EXRHeader.dataWindow.yMax - y_block;
 				y_global -= y_local; // todo: what about decreasing Y, inside block?
@@ -456,7 +457,7 @@ THREE.EXRLoader.prototype._parser = function ( buffer ) {
 
 					var cOff = channelOffsets[ EXRHeader.channels[ channelID ].name ];
 					cOff += y_global * width * numChannels;
-					var lOff = channelID * scanlineBlockSize * width + y_local * width;
+					var lOff = channelID * fractionalBlockSize * width + y_local * width;
 
 					if ( EXRHeader.channels[ channelID ].pixelType === 1 ) {
 						// HALF
