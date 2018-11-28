@@ -76,7 +76,7 @@
 THREE.EXRLoader.prototype.PIZReader = function() {
 
 	const USHORT_RANGE = (1 << 16);
-	const BITMAP_SIZE = (USHORT_RANGE >> 3);
+	const BITMAP_SIZE = (USHORT_RANGE >>> 3);
 
 	const HUF_ENCBITS = 16;  // literal (value) bit length
 	const HUF_DECBITS = 14;  // decoding bit size (>= 8)
@@ -124,24 +124,6 @@ THREE.EXRLoader.prototype.PIZReader = function() {
 
 	}
 
-	// https://stackoverflow.com/questions/5678432/decompressing-half-precision-floats-in-javascript
-	function decodeFloat16( binary ) {
-
-		var exponent = ( binary & 0x7C00 ) >> 10,
-			fraction = binary & 0x03FF;
-
-		return ( binary >> 15 ? - 1 : 1 ) * (
-			exponent ?
-				(
-					exponent === 0x1F ?
-						fraction ? NaN : Infinity :
-						Math.pow( 2, exponent - 15 ) * ( 1 + fraction / 0x400 )
-				) :
-				6.103515625e-5 * ( fraction / 0x400 )
-		);
-
-	}
-
 	function parseUint16( dataView, offset ) {
 
 		var Uint16 = dataView.getUint16( offset.value, true );
@@ -158,7 +140,7 @@ THREE.EXRLoader.prototype.PIZReader = function() {
 
 		for ( var i = 0; i < USHORT_RANGE; ++ i ) {
 
-			if ( ( i == 0 ) || ( bitmap[ i >> 3 ] & ( 1 << ( i & 7 ) ) ) ) {
+			if ( ( i == 0 ) || ( bitmap[ i >>> 3 ] & ( 1 << ( i & 7 ) ) ) ) {
 
 				lut[ k ++ ] = i;
 
@@ -193,14 +175,14 @@ THREE.EXRLoader.prototype.PIZReader = function() {
 
 		while ( lc < nBits ) {
 
-			c = ( c << 8 ) | parseUint8Array( uInt8Array, inOffset );
+			c = ( ( c << 8 ) | parseUint8Array( uInt8Array, inOffset ) ) >>> 0;
 			lc += 8;
 
 		}
 
 		lc -= nBits;
 
-		getBitsReturn.l = ( c >> lc ) & ( ( 1 << nBits ) - 1 );
+		getBitsReturn.l = ( ( c >>> lc ) & ( ( ( 1 << nBits ) >>> 0 ) - 1 ) ) >>> 0;
 		getBitsReturn.c = c;
 		getBitsReturn.lc = lc;
 	}
@@ -216,7 +198,7 @@ THREE.EXRLoader.prototype.PIZReader = function() {
 
 		for ( var i = 58; i > 0; -- i ) {
 
-			var nc = ( ( c + hufTableBuffer[ i ] ) >> 1 );
+			var nc = ( ( c + hufTableBuffer[ i ] ) >>> 1 );
 			hufTableBuffer[ i ] = c;
 			c = nc;
 
@@ -225,7 +207,7 @@ THREE.EXRLoader.prototype.PIZReader = function() {
 		for ( var i = 0; i < HUF_ENCSIZE; ++ i ) {
 
 			var l = hcode[ i ];
-			if ( l > 0 ) hcode[ i ] = l | ( hufTableBuffer[ l ] ++ << 6 );
+			if ( l > 0 ) hcode[ i ] = ( l | ( hufTableBuffer[ l ] ++ << 6 ) ) >>> 0;
 
 		}
 
@@ -297,7 +279,7 @@ THREE.EXRLoader.prototype.PIZReader = function() {
 
 	function hufLength( code ) { return code & 63; }
 
-	function hufCode( code ) { return code >> 6; }
+	function hufCode( code ) { return code >>> 6; }
 
 	function hufBuildDecTable( hcode, im, iM, hdecod ) {
 
@@ -306,7 +288,7 @@ THREE.EXRLoader.prototype.PIZReader = function() {
 			var c = hufCode( hcode[ im ] );
 			var l = hufLength( hcode[ im ] );
 
-			if ( c >> l ) {
+			if ( c >>> l ) {
 
 				throw 'Invalid table entry';
 
@@ -314,7 +296,7 @@ THREE.EXRLoader.prototype.PIZReader = function() {
 
 			if ( l > HUF_DECBITS ) {
 
-				var pl = hdecod[ ( c >> ( l - HUF_DECBITS ) ) ];
+				var pl = hdecod[ ( c >>> ( l - HUF_DECBITS ) ) ];
 
 				if ( pl.len ) {
 
@@ -347,9 +329,9 @@ THREE.EXRLoader.prototype.PIZReader = function() {
 
 				var plOffset = 0;
 
-				for ( var i = 1 << ( HUF_DECBITS - l ); i > 0; i -- ) {
+				for ( var i = ( 1 << ( HUF_DECBITS - l ) ) >>> 0; i > 0; i -- ) {
 
-					var pl = hdecod[ ( c << ( HUF_DECBITS - l ) ) + plOffset ];
+					var pl = hdecod[ ( ( c << ( HUF_DECBITS - l ) ) >>> 0) + plOffset ];
 
 					if ( pl.len || pl.p ) {
 
@@ -376,7 +358,7 @@ THREE.EXRLoader.prototype.PIZReader = function() {
 
 	function getChar( c, lc, uInt8Array, inOffset ) {
 
-		c = ( c << 8 ) | parseUint8Array( uInt8Array, inOffset );
+		c = ( ( c << 8 ) | parseUint8Array( uInt8Array, inOffset ) ) >>> 0;
 		lc += 8;
 
 		getCharReturn.c = c;
@@ -400,7 +382,7 @@ THREE.EXRLoader.prototype.PIZReader = function() {
 
 			lc -= 8;
 
-			var cs = ( c >> lc );
+			var cs = ( c >>> lc );
 			var cs = new Uint8Array([cs])[0];
 
 			if ( outBufferOffset.value + cs > outBufferEndOffset ) {
@@ -458,7 +440,7 @@ THREE.EXRLoader.prototype.PIZReader = function() {
 		var hs = Int16( h );
 
 		var hi = hs;
-		var ai = ls + ( hi & 1 ) + ( hi >> 1 );
+		var ai = ls + (( hi & 1 ) >>> 0) + ( hi >>> 1 );
 
 		var as = ai;
 		var bs = ai - hi;
@@ -474,11 +456,11 @@ THREE.EXRLoader.prototype.PIZReader = function() {
 		var p = 1;
 		var p2;
 
-		while ( p <= n ) p <<= 1;
+		while ( p <= n ) p = (p << 1) >>> 0;
 
-		p >>= 1;
+		p >>>= 1;
 		p2 = p;
-		p >>= 1;
+		p >>>= 1;
 
 		while ( p >= 1 ) {
 
@@ -559,7 +541,7 @@ THREE.EXRLoader.prototype.PIZReader = function() {
 			}
 
 			p2 = p;
-			p >>= 1;
+			p >>>= 1;
 
 		}
 
@@ -583,7 +565,7 @@ THREE.EXRLoader.prototype.PIZReader = function() {
 
 			while ( lc >= HUF_DECBITS ) {
 
-				var index = ( c >> ( lc - HUF_DECBITS ) ) & HUF_DECMASK;
+				var index = ( ( c >>> ( lc - HUF_DECBITS ) ) & HUF_DECMASK ) >>> 0;
 				var pl = decodingTable[ index ];
 
 				if ( pl.len ) {
@@ -620,7 +602,7 @@ THREE.EXRLoader.prototype.PIZReader = function() {
 
 						if ( lc >= l ) {
 
-							if ( hufCode( encodingTable[ pl.p[ j ] ] ) == ( ( c >> ( lc - l ) ) & ( ( 1 << l ) - 1 ) ) ) {
+							if ( hufCode( encodingTable[ pl.p[ j ] ] ) == ( ( c >>> ( lc - l ) ) & ( ( ( 1 << l ) >>> 0) - 1 ) ) >>> 0 ) {
 
 								lc -= l;
 
@@ -651,12 +633,12 @@ THREE.EXRLoader.prototype.PIZReader = function() {
 
 		var i = ( 8 - ni ) & 7;
 
-		c >>= i;
+		c >>>= i;
 		lc -= i;
 
 		while ( lc > 0 ) {
 
-			var pl = decodingTable[ ( c << ( HUF_DECBITS - lc ) ) & HUF_DECMASK ];
+			var pl = decodingTable[ ( ( c << ( HUF_DECBITS - lc ) ) & HUF_DECMASK ) >>> 0 ];
 
 			if ( pl.len ) {
 
@@ -746,6 +728,7 @@ THREE.EXRLoader.prototype.PIZReader = function() {
 
 			for ( var i = 0; i < maxNonZero - minNonZero + 1; i ++ ) {
 
+				// todo: inefficient ...
 				bitmap[ i + minNonZero ] = parseUint8( inDataView, inOffset );
 
 			}

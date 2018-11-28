@@ -170,10 +170,10 @@ THREE.EXRLoader.prototype._parser = function ( buffer ) {
 	// https://stackoverflow.com/questions/5678432/decompressing-half-precision-floats-in-javascript
 	function decodeFloat16( binary ) {
 
-		var exponent = ( binary & 0x7C00 ) >> 10,
-			fraction = binary & 0x03FF;
+		var exponent = ( binary & 0x7C00 ) >>> 10,
+			fraction = ( binary & 0x03FF ) >>> 0;
 
-		return ( binary >> 15 ? - 1 : 1 ) * (
+		return ( binary >>> 15 ? - 1 : 1 ) * (
 			exponent ?
 				(
 					exponent === 0x1F ?
@@ -445,7 +445,9 @@ THREE.EXRLoader.prototype._parser = function ( buffer ) {
 
 			var fractionalBlockSize = Math.min(scanlineBlockSize, EXRHeader.dataWindow.yMax - y_block + 1);
 			var tmpOffset = { value: 0 };
-			pizReader.decompress( tmpBuffer, tmpOffset, tmpBuffer.byteLength, uInt8Array, bufferDataView, offset, numChannels, EXRHeader.channels, width, fractionalBlockSize );
+			pizReader.decompress( tmpBuffer, tmpOffset, fractionalBlockSize * width * EXRHeader.channels.length * BYTES_PER_HALF
+				, uInt8Array, bufferDataView, offset, numChannels, EXRHeader.channels
+				, width, fractionalBlockSize );
 
 			for ( var y_local = 0; y_local < fractionalBlockSize; y_local++ ) {
 
