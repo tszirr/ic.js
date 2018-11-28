@@ -393,9 +393,9 @@ THREE.EXRLoader.prototype._parser = function ( buffer ) {
 	var byteArray = new Float32Array( width * height * numChannels );
 
 	var channelOffsets = {
-		R: 0,
-		G: 1,
-		B: 2,
+		R: 0, X: 0,
+		G: 1, Y: 1,
+		B: 2, Z: 2,
 		A: 3
 	};
 
@@ -637,8 +637,11 @@ THREE.EXRLoader.prototype.serializeRGBAtoEXR = function ( image, rgbData, refHea
 
 	if (!refHeader)
 		refHeader = { };
+	else
+		console.log(refHeader);
+	
 	var header = {
-		channels: refHeader.channels || [ 'R', 'G', 'B', 'A' ],
+		channels: refHeader.channels || [ 'A', 'B', 'G', 'R' ],
 		dataWindow: refHeader.dataWindow || { xMin: 0, xMax: image.width-1, yMin: 0, yMax: image.height-1 },
 		compression: 0, // NO_COMPRESSION
 		lineOrder: 1, // DECREASING_Y
@@ -655,12 +658,18 @@ THREE.EXRLoader.prototype.serializeRGBAtoEXR = function ( image, rgbData, refHea
 	}
 	else
 		throw 'Invalid PF data encoding, must be (up to) 4-channel 32-bit floating-point data';
+	// simplified header w/ only channel names
+	for (var i = 0; i < header.channels.length; ++i) {
+		header.channels[i] = header.channels[i].name || header.channels[i];
+	}
 
 	if (header.dataWindow.xMax - header.dataWindow.xMin != image.width-1)
 		header.dataWindow.xMax = header.dataWindow.xMin + image.width-1;
 	if (header.dataWindow.yMax - header.dataWindow.yMin != image.height-1)
 		header.dataWindow.yMax = header.dataWindow.yMin + image.height-1;
 	header.displayWindow = refHeader.displayWindow || header.dataWindow;
+
+	console.log(header);
 
 	var cursor = { value: 8 };
 	writeAttributes( null, null, cursor, header );
@@ -685,12 +694,19 @@ THREE.EXRLoader.prototype.serializeRGBAtoEXR = function ( image, rgbData, refHea
 	outputBlobs.push(offsetTableBuffer);
 	cursor.value += offsetTableBuffer.byteLength;
 
+	var channelOffsets = {
+		R: 0, X: 0,
+		G: 1, Y: 1,
+		B: 2, Z: 2,
+		A: 3
+	};
+
 	// data
 	var dataCursor = 0;
 	for (var blockIdx = 0; blockIdx < numBlocks; blockIdx++) {
 		// offset table entry
-		offsetTableBuffer[2*blockIdx+0] = cursor.value;
-		offsetTableBuffer[2*blockIdx+1] = 0;
+		offsetTableBuffer[2*(numBlocks-blockIdx)-2] = cursor.value;
+		offsetTableBuffer[2*(numBlocks-blockIdx)-1] = 0;
 		// block header storage
 		var scanlineHeaderBuffer = new Uint32Array(2);
 		outputBlobs.push(scanlineHeaderBuffer);
@@ -699,8 +715,9 @@ THREE.EXRLoader.prototype.serializeRGBAtoEXR = function ( image, rgbData, refHea
 		var interleavedBlock = rgbData.subarray(dataCursor, dataCursor + scanlineBlockSize * image.width * rgbChannelCount);
 		var uncompressedBlock = new Float32Array(scanlineBlockSize * image.width * header.channels.length);
 		for (var c = 0; c < header.channels.length; c++) {
+			var cOff = channelOffsets[ header.channels[c] ];
 			for (var x = 0; x < image.width; x++) {
-				uncompressedBlock[c * image.width + x] = interleavedBlock[x * rgbChannelCount + c];
+				uncompressedBlock[c * image.width + x] = interleavedBlock[x * rgbChannelCount + cOff];
 			}
 		}
 		dataCursor += interleavedBlock.length;
@@ -709,7 +726,7 @@ THREE.EXRLoader.prototype.serializeRGBAtoEXR = function ( image, rgbData, refHea
 		outputBlobs.push( blockBuffer );
 		cursor.value += blockBuffer.byteLength;
 		// block header information
-		scanlineHeaderBuffer[0] = image.height - 1 - blockIdx * scanlineBlockSize;
+		scanlineHeaderBuffer[0] = header.dataWindow.yMax - blockIdx * scanlineBlockSize;
 		scanlineHeaderBuffer[1] = blockBuffer.byteLength;
 	}
 	
