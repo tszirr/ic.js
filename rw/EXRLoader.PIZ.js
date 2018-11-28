@@ -432,33 +432,15 @@ THREE.EXRLoader.prototype.PIZReader = function() {
 
 	}
 
-	var NBITS = 16;
-	var A_OFFSET = 1 << ( NBITS - 1 );
-	var M_OFFSET = 1 << ( NBITS - 1 );
-	var MOD_MASK = ( 1 << NBITS ) - 1;
-
-	function UInt16( value ) {
-
-		return ( value & 0xFFFF );
-
-	}
-
-	function Int16( value ) {
-
-		var ref = UInt16( value );
-		return ( ref > 0x7FFF ) ? ref - 0x10000 : ref;
-
-	}
-
 	const wdec14Return = { a: 0, b: 0 };
 
 	function wdec14( l, h ) {
 
-		var ls = Int16( l );
-		var hs = Int16( h );
+		var ls = (l << 16) >> 16;
+		var hh = h << 16;
 
-		var hi = hs;
-		var ai = ls + ( hi & 1 ) + ( hi >> 1 );
+		var hi = hh >> 16;
+		var ai = ls + ( h & 1 ) + ( hh >> 17 );
 
 		var as = ai;
 		var bs = ai - hi;
@@ -467,6 +449,11 @@ THREE.EXRLoader.prototype.PIZReader = function() {
 		wdec14Return.b = bs;
 
 	}
+
+	var NBITS = 16;
+	var A_OFFSET = 1 << ( NBITS - 1 );
+	var M_OFFSET = 1 << ( NBITS - 1 );
+	var MOD_MASK = ( 1 << NBITS ) - 1;
 
 	function wdec16( l, h ) {
 		m = l;
