@@ -18,7 +18,10 @@
 				font-family: Monospace;
 				font-size: 13px;
 				text-align: center;
-				z-index:100;
+				z-index:10;
+			}
+			.dg.ac {
+				z-index:20 !important;
 			}
 			a {
 				color: orange;
@@ -70,15 +73,17 @@
 			var camera, scenes, renderer;
 			var cameraControl;
 			var pathMaterial;
+			var hdrOutput = null;
 			init();
 			var gui = new UiParameters();
+			var processingScene = new ProcessingScene();
 			animate();
 			function init() {
 				camera = new THREE.PerspectiveCamera( 33, 1, 1, 10000 );
 				camera.applyMatrix(defaultCamera);
 				//
 				renderer = new THREE.WebGLRenderer( { antialias: false, depth: false, stencil: false } );
-				renderer.gammaOutput = true;
+				renderer.gammaFactor = 2.2;
 				renderer.setPixelRatio( window.devicePixelRatio );
 				//
 				window.addEventListener( 'resize', onWindowResize, false );
@@ -173,6 +178,8 @@
 				this.gui.add(cameraControl, 'baseVelocity', .01, 500);
 				this.brightness = -2;
 				this.gui.add(this, 'brightness', -5, 2);
+				this.hdr = false;
+				this.gui.add(this, 'hdr');
 			}
 /*			//
 			function onDocumentMouseMove( event ) {
@@ -208,6 +215,39 @@
 
 				prevTime = time;
 			}
+			function outputFor(buf) {
+				var parameters = {
+					format: THREE.RGBAFormat,
+					type: THREE.FloatType,
+					minFilter: THREE.NearestFilter,
+					magFilter: THREE.NearestFilter,
+					depthBuffer: false,
+					stencilBuffer: false
+				};
+				var renderTarget = new THREE.WebGLRenderTarget( buf.width, buf.height, parameters );
+				return renderTarget;
+			}
+			function updateOutputFor(buf, renderTarget) {
+				if (renderTarget != null && renderTarget.width == buf.width && renderTarget.height == buf.height)
+					return renderTarget;
+				else {
+					console.log('Updating render target');
+					var o = outputFor(buf);
+					// memory management!
+					if (renderTarget != null)
+						renderTarget.dispose();
+					return o;
+				}
+			}
+			function ProcessingScene() {
+				this.scene = new THREE.Scene();
+				this.camera = new THREE.OrthographicCamera( - 1, 1, 1, - 1, 0, 1 );
+				this.scene.add( this.camera );
+				this.material = new THREE.MeshBasicMaterial({});
+				this.quad = new THREE.Mesh( new THREE.PlaneBufferGeometry( 2, 2 ), this.material );
+				this.quad.frustumCulled = false;
+				this.scene.add( this.quad );
+			}
 			function render() {				
 				var i = 0;
 				pathMaterial.color.setScalar( Math.pow(10, gui.brightness) );
@@ -217,7 +257,21 @@
 					renderer.setViewport( left, top, windowHalfX, 2 * windowHalfY );
 					renderer.setScissor( left, top, windowHalfX, 2 * windowHalfY );
 					renderer.setScissorTest( true );
-					renderer.render( scene, camera );
+
+					if (gui.hdr) {
+						hdrOutput = updateOutputFor(renderer.getDrawingBufferSize(), hdrOutput);
+						renderer.render( scene, camera, hdrOutput, true );
+
+						processingScene.material.map = hdrOutput.texture;
+						renderer.gammaOutput = true;
+						renderer.render( processingScene.scene, processingScene.camera );
+						renderer.gammaOutput = false;
+					}
+					else {
+						renderer.gammaOutput = true;
+						renderer.render( scene, camera );
+						renderer.gammaOutput = false;
+					}
 				}
 			}
 		</script>
