@@ -170,10 +170,10 @@ THREE.EXRLoader.prototype._parser = function ( buffer ) {
 	// https://stackoverflow.com/questions/5678432/decompressing-half-precision-floats-in-javascript
 	function decodeFloat16( binary ) {
 
-		var exponent = ( binary & 0x7C00 ) >> 10,
-			fraction = binary & 0x03FF;
+		var exponent = ( binary & 0x7C00 ) >>> 10,
+			fraction = ( binary & 0x03FF ) >>> 0;
 
-		return ( binary >> 15 ? - 1 : 1 ) * (
+		return ( binary >>> 15 ? - 1 : 1 ) * (
 			exponent ?
 				(
 					exponent === 0x1F ?
@@ -398,6 +398,10 @@ THREE.EXRLoader.prototype._parser = function ( buffer ) {
 		B: 2, Z: 2,
 		A: 3
 	};
+	var channelBytes = 0;
+	for ( var ch of EXRHeader.channels ) {
+		channelBytes += ch.pixelType * BYTES_PER_HALF;
+	}
 
 	if ( EXRHeader.compression === 'NO_COMPRESSION' ) {
 
@@ -436,7 +440,6 @@ THREE.EXRLoader.prototype._parser = function ( buffer ) {
 
 		var pizReader = new this.PIZReader();
 		var uInt8Array = new Uint8Array(buffer);
-		var tmpBuffer = new Uint16Array( scanlineBlockSize * width * EXRHeader.channels.length );
 
 		for ( var scanlineBlockIdx = 0; scanlineBlockIdx < numBlocks; scanlineBlockIdx ++ ) {
 
@@ -444,8 +447,24 @@ THREE.EXRLoader.prototype._parser = function ( buffer ) {
 			var compressedLen = parseUint32( bufferDataView, offset );
 
 			var fractionalBlockSize = Math.min(scanlineBlockSize, EXRHeader.dataWindow.yMax - y_block + 1);
-			var tmpOffset = { value: 0 };
-			pizReader.decompress( tmpBuffer, tmpOffset, tmpBuffer.byteLength, uInt8Array, bufferDataView, offset, numChannels, EXRHeader.channels, width, fractionalBlockSize );
+			var uncompressedLen = fractionalBlockSize * width * channelBytes;
+
+			var decodeOffset = { value: offset.value };
+			offset.value += compressedLen;
+
+			var tmpBuffer;
+			if (compressedLen < uncompressedLen) {
+				tmpBuffer = new Uint16Array( scanlineBlockSize * width * EXRHeader.channels.length );
+				var tmpOffset = { value: 0 };
+				pizReader.decompress( tmpBuffer, tmpOffset, tmpBuffer.byteLength
+					, uInt8Array, bufferDataView, decodeOffset, numChannels, EXRHeader.channels
+					, width, fractionalBlockSize );
+			}
+			else
+				tmpBuffer = new Uint16Array( uInt8Array.slice(decodeOffset.value, uncompressedLen) );
+			
+			if (offset.value != decodeOffset.value)
+				console.warn('decoder ended at ' + decodeOffset.value + ', should have ended ' + offset.value);
 
 			for ( var y_local = 0; y_local < fractionalBlockSize; y_local++ ) {
 
@@ -478,11 +497,14 @@ THREE.EXRLoader.prototype._parser = function ( buffer ) {
 
 			var y_block = parseUint32( bufferDataView, offset );
 			var compressedLen = parseUint32( bufferDataView, offset );
+
+			var fractionalBlockSize = Math.min(scanlineBlockSize, EXRHeader.dataWindow.yMax - y_block + 1);
+			var uncompressedLen = fractionalBlockSize * width * channelBytes;
+
 			var blockBuffer;
+			if (compressedLen < uncompressedLen)
 			{
 				var predArray = pako.inflate(new Uint8Array(buffer, offset.value, compressedLen));
-				offset.value += compressedLen;
-
 				var dataSize = predArray.length;
 				var blockBuffer = new Uint8Array(dataSize);
 				// OpenEXR predictor
@@ -495,6 +517,9 @@ THREE.EXRLoader.prototype._parser = function ( buffer ) {
 				for (var i = 0; 2*i+1 < dataSize; i++)
 					blockBuffer[2*i+1] = predArray[data_split+i];
 			}
+			else
+				blockBuffer = uInt8Array.slice(offset.value, uncompressedLen);
+			offset.value += compressedLen;
 
 			for ( var y_local = 0; y_local < scanlineBlockSize; y_local++ ) {
 
