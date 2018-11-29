@@ -205,7 +205,7 @@ THREE.EXRLoader.prototype.PIZReader = function() {
 		getBitsReturn.lc = lc;
 	}
 
-	const hufTableBuffer = new Array( 59 );
+	const hufTableBuffer = new Int32Array( 59 );
 
 	function hufCanonicalCodeTable( hcode ) {
 
@@ -695,7 +695,8 @@ THREE.EXRLoader.prototype.PIZReader = function() {
 
 		}
 
-		var freq = new Array( HUF_ENCSIZE );
+		//var freq = new Array( HUF_ENCSIZE );
+		var freq = new Int32Array( HUF_ENCSIZE );
 		var hdec = new Array( HUF_DECSIZE );
 
 		hufClearDecTable( hdec );
