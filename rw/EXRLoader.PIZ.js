@@ -300,6 +300,7 @@ THREE.EXRLoader.prototype.PIZReader = function() {
 
 	function hufCode( code ) { return code >> 6; }
 
+	const hdeca = [ null ];
 	function hufBuildDecTable( hcode, im, iM, hdecod ) {
 
 		for ( ; im <= iM; im ++ ) {
@@ -315,34 +316,25 @@ THREE.EXRLoader.prototype.PIZReader = function() {
 
 			if ( l > HUF_DECBITS ) {
 
-				var pl = hdecod[ ( c >> ( l - HUF_DECBITS ) ) ];
+				var hdeci = ( c >> ( l - HUF_DECBITS ) );
+				var pl_len = hdecod[3*hdeci];
 
-				if ( pl.len ) {
-
+				if ( pl_len ) {
 					throw 'Invalid table entry';
-
 				}
 
-				pl.lit ++;
+				var pl_lit = ++hdecod[3*hdeci+1];
 
-				if ( pl.p ) {
-
-					var p = pl.p;
-					pl.p = new Array( pl.lit );
-
-					for ( var i = 0; i < pl.lit - 1; ++ i ) {
-
-						pl.p[ i ] = p[ i ];
-
-					}
-
-				} else {
-
-					pl.p = new Array( 1 );
-
+				var pl_arri = hdecod[3*hdeci+2];
+				if (pl_arri) {
+					hdeca[pl_arri].push(im);
 				}
-
-				pl.p[ pl.lit - 1 ] = im;
+				else {
+					pl_arri = hdeca.length;
+					hdeca.push( [im] );
+					hdecod[3*hdeci+2] = pl_arri;
+				}
+				// assert: pl_lit == hdeca[pl_arri].length
 
 			} else if ( l ) {
 
@@ -350,16 +342,16 @@ THREE.EXRLoader.prototype.PIZReader = function() {
 
 				for ( var i = 1 << ( HUF_DECBITS - l ); i > 0; i -- ) {
 
-					var pl = hdecod[ ( c << ( HUF_DECBITS - l ) ) + plOffset ];
+					var hdeci = ( c << ( HUF_DECBITS - l ) ) + plOffset;
+					var pl_len = hdecod[ 3*hdeci ];
+					var pl_arri = hdecod[ 3*hdeci+2 ];
 
-					if ( pl.len || pl.p ) {
-
+					if ( pl_len || pl_arri ) {
 						throw 'Invalid table entry';
-
 					}
 
-					pl.len = l;
-					pl.lit = im;
+					hdecod[ 3*hdeci ] = l;
+					hdecod[ 3*hdeci+1 ] = im;
 
 					plOffset ++;
 
@@ -581,20 +573,24 @@ THREE.EXRLoader.prototype.PIZReader = function() {
 			while ( lc >= HUF_DECBITS ) {
 
 				var index = ( c >> ( lc - HUF_DECBITS ) ) & HUF_DECMASK;
-				var pl = decodingTable[ index ];
+				var pl_len = decodingTable[ 3*index ];
+				var pl_lit = decodingTable[ 3*index+1 ];
 
-				if ( pl.len ) {
+				if ( pl_len ) {
 
-					lc -= pl.len;
+					lc -= pl_len;
 
-					getCode( pl.lit, rlc, c, lc, uInt8Array, inDataView, inOffset, outBuffer, outOffset, outBufferEndOffset );
+					getCode( pl_lit, rlc, c, lc, uInt8Array, inDataView, inOffset, outBuffer, outOffset, outBufferEndOffset );
 
 					c = getCodeReturn.c;
 					lc = getCodeReturn.lc;
 
 				} else {
 
-					if ( ! pl.p ) {
+					var pl_arri = decodingTable[ 3*index+2 ];
+					var pl_arr = hdeca[pl_arri];
+
+					if ( ! pl_arr ) {
 
 						throw 'hufDecode issues';
 
@@ -602,9 +598,9 @@ THREE.EXRLoader.prototype.PIZReader = function() {
 
 					var j;
 
-					for ( j = 0; j < pl.lit; j ++ ) {
+					for ( j = 0; j < pl_lit; j ++ ) {
 
-						var l = hufLength( encodingTable[ pl.p[ j ] ] );
+						var l = hufLength( encodingTable[ pl_arr[ j ] ] );
 
 						while ( lc < l && inOffset.value < inOffsetEnd ) {
 
@@ -617,11 +613,11 @@ THREE.EXRLoader.prototype.PIZReader = function() {
 
 						if ( lc >= l ) {
 
-							if ( hufCode( encodingTable[ pl.p[ j ] ] ) == ( ( c >> ( lc - l ) ) & ( ( 1 << l ) - 1 ) ) ) {
+							if ( hufCode( encodingTable[ pl_arr[ j ] ] ) == ( ( c >> ( lc - l ) ) & ( ( 1 << l ) - 1 ) ) ) {
 
 								lc -= l;
 
-								getCode( pl.p[ j ], rlc, c, lc, uInt8Array, inDataView, inOffset, outBuffer, outOffset, outBufferEndOffset );
+								getCode( pl_arr[ j ], rlc, c, lc, uInt8Array, inDataView, inOffset, outBuffer, outOffset, outBufferEndOffset );
 
 								c = getCodeReturn.c;
 								lc = getCodeReturn.lc;
@@ -634,7 +630,7 @@ THREE.EXRLoader.prototype.PIZReader = function() {
 
 					}
 
-					if ( j == pl.lit ) {
+					if ( j == pl_lit ) {
 
 						throw 'hufDecode issues';
 
@@ -653,13 +649,15 @@ THREE.EXRLoader.prototype.PIZReader = function() {
 
 		while ( lc > 0 ) {
 
-			var pl = decodingTable[ ( c << ( HUF_DECBITS - lc ) ) & HUF_DECMASK ];
+			var index = ( c << ( HUF_DECBITS - lc ) ) & HUF_DECMASK;
+			var pl_len = decodingTable[ 3*index ];
+			var pl_lit = decodingTable[ 3*index+1 ];
 
-			if ( pl.len ) {
+			if ( pl_len ) {
 
-				lc -= pl.len;
+				lc -= pl_len;
 
-				getCode( pl.lit, rlc, c, lc, uInt8Array, inDataView, inOffset, outBuffer, outOffset, outBufferEndOffset );
+				getCode( pl_lit, rlc, c, lc, uInt8Array, inDataView, inOffset, outBuffer, outOffset, outBufferEndOffset );
 
 				c = getCodeReturn.c;
 				lc = getCodeReturn.lc;
@@ -697,9 +695,10 @@ THREE.EXRLoader.prototype.PIZReader = function() {
 		}
 
 		//var freq = new Array( HUF_ENCSIZE );
-		var hdec = new Array( HUF_DECSIZE );
+		//var hdec = new Array( HUF_DECSIZE );
+		var hdec = new Int32Array( 3*HUF_DECSIZE );
 
-		hufClearDecTable( hdec );
+//		hufClearDecTable( hdec );
 
 		var ni = nCompressed - ( inOffset.value - initialInOffset );
 
