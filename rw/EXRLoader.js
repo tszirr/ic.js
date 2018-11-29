@@ -76,6 +76,7 @@
 THREE.EXRLoader = function ( manager ) {
 
 	this.manager = ( manager !== undefined ) ? manager : THREE.DefaultLoadingManager;
+	this.totalDecodingTime = 0;
 
 };
 
@@ -403,6 +404,8 @@ THREE.EXRLoader.prototype._parser = function ( buffer ) {
 		channelBytes += ch.pixelType * BYTES_PER_HALF;
 	}
 
+	var decodeStartTime = performance.now();
+
 	if ( EXRHeader.compression === 'NO_COMPRESSION' ) {
 
 		for ( var y = 0; y < height; y ++ ) {
@@ -559,6 +562,10 @@ THREE.EXRLoader.prototype._parser = function ( buffer ) {
 		throw 'EXRLoader._parser: ' + EXRHeader.compression + ' is unsupported';
 
 	}
+
+	var decodeTime = performance.now() - decodeStartTime;
+	this.totalDecodingTime += decodeTime;
+	console.log('Total time spent decoding: ' + this.totalDecodingTime + ', this time: ' + decodeTime);
 
 	return {
 		header: EXRHeader,
