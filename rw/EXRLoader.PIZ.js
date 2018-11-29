@@ -155,15 +155,17 @@ THREE.EXRLoader.prototype.PIZReader = function() {
 	function reverseLutFromBitmap( bitmap, lut, minNonZero, maxNonZero ) {
 
 		var k = 0;
+		lut[ k ++ ] = 0;
 
-		for ( var i = minNonZero << 3; i <= (maxNonZero << 3); ++ i ) {
-
-			if ( ( i == 0 ) || ( bitmap[ i >> 3 ] & ( 1 << ( i & 7 ) ) ) ) {
-
-				lut[ k ++ ] = i;
-
+		for ( var i = minNonZero; i <= maxNonZero; ++i ) {
+			var b = bitmap[ i ];
+			if ( b ) {
+				for ( var j = (i ? 0 : 1); j < 8; ++j ) {
+					if ( b & ( 1 << j ) ) {
+						lut[ k ++ ] = (i << 3) + j;
+					}
+				}
 			}
-
 		}
 
 		var n = k - 1;
@@ -205,11 +207,9 @@ THREE.EXRLoader.prototype.PIZReader = function() {
 		getBitsReturn.lc = lc;
 	}
 
-	const hufTableBuffer = new Int32Array( 59 );
-
 	function hufCanonicalCodeTable( hcode, im, iM ) {
 
-		for ( var i = 0; i <= 58; ++ i ) hufTableBuffer[ i ] = 0;
+		var hufTableBuffer = new Int32Array( 59 );
 		hufTableBuffer[ 0 ] += im + (HUF_ENCSIZE - 1 - iM);
 		for ( var i = im; i <= iM; ++ i ) hufTableBuffer[ hcode[ i ] ] += 1;
 
@@ -726,10 +726,11 @@ THREE.EXRLoader.prototype.PIZReader = function() {
 
 	}
 
+	var bitmap = new Uint8Array( BITMAP_SIZE );
 	var lut = new Uint16Array( USHORT_RANGE );
 	this.decompress = function( outBuffer, outOffset, tmpBufSize, uInt8Array, inDataView, inOffset, num_channels, exrChannelInfos, dataWidth, num_lines ) {
 
-		var bitmap = new Uint8Array( BITMAP_SIZE );
+		//var bitmap = new Uint8Array( BITMAP_SIZE );
 
 		var minNonZero = parseUint16( inDataView, inOffset );
 		var maxNonZero = parseUint16( inDataView, inOffset );
@@ -740,8 +741,13 @@ THREE.EXRLoader.prototype.PIZReader = function() {
 
 		}
 
-		for ( var i = minNonZero; i < maxNonZero + 1; i ++ ) {
-			bitmap[ i ] = parseUint8( inDataView, inOffset );
+//		for ( var i = minNonZero; i < maxNonZero + 1; i ++ ) {
+//			bitmap[ i ] = parseUint8( inDataView, inOffset );
+//		}
+		if (minNonZero <= maxNonZero) {
+			var nbytes = maxNonZero-minNonZero+1;
+			bitmap.set( uInt8Array.subarray(inOffset.value, inOffset.value + nbytes), minNonZero );
+			inOffset.value += nbytes;
 		}
 
 		//var lut = new Uint16Array( USHORT_RANGE );
