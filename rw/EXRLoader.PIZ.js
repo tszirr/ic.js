@@ -401,8 +401,7 @@ THREE.EXRLoader.prototype.PIZReader = function() {
 
 			lc -= 8;
 
-			var cs = ( c >> lc );
-			var cs = new Uint8Array([cs])[0];
+			var cs = ( c >> lc ) & 0xFF;
 
 			if ( outBufferOffset.value + cs > outBufferEndOffset ) {
 
