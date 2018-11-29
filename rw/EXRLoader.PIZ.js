@@ -104,44 +104,6 @@ THREE.EXRLoader.prototype.PIZReader = function() {
 
 	}
 
-	function parseUint8Array( uInt8Array, offset ) {
-
-		var Uint8 = uInt8Array[offset.value];
-
-		offset.value = offset.value + INT8_SIZE;
-
-		return Uint8;
-
-	}
-
-	function parseUint8( dataView, offset ) {
-
-		var Uint8 = dataView.getUint8(offset.value);
-
-		offset.value = offset.value + INT8_SIZE;
-
-		return Uint8;
-
-	}
-
-	// https://stackoverflow.com/questions/5678432/decompressing-half-precision-floats-in-javascript
-	function decodeFloat16( binary ) {
-
-		var exponent = ( binary & 0x7C00 ) >> 10,
-			fraction = binary & 0x03FF;
-
-		return ( binary >> 15 ? - 1 : 1 ) * (
-			exponent ?
-				(
-					exponent === 0x1F ?
-						fraction ? NaN : Infinity :
-						Math.pow( 2, exponent - 15 ) * ( 1 + fraction / 0x400 )
-				) :
-				6.103515625e-5 * ( fraction / 0x400 )
-		);
-
-	}
-
 	function parseUint16( dataView, offset ) {
 
 		var Uint16 = dataView.getUint16( offset.value, true );
@@ -149,6 +111,16 @@ THREE.EXRLoader.prototype.PIZReader = function() {
 		offset.value += INT16_SIZE;
 
 		return Uint16;
+
+	}
+
+	function parseUint8Array( uInt8Array, offset ) {
+
+		var Uint8 = uInt8Array[offset.value];
+
+		offset.value = offset.value + INT8_SIZE;
+
+		return Uint8;
 
 	}
 	
@@ -173,19 +145,6 @@ THREE.EXRLoader.prototype.PIZReader = function() {
 //		while ( k < USHORT_RANGE ) lut[ k ++ ] = 0;
 
 		return n;
-
-	}
-
-	function hufClearDecTable( hdec ) {
-
-		for ( var i = 0; i < HUF_DECSIZE; i ++ ) {
-
-			hdec[ i ] = {};
-			hdec[ i ].len = 0;
-			hdec[ i ].lit = 0;
-			hdec[ i ].p = null;
-
-		}
 
 	}
 
@@ -232,17 +191,17 @@ THREE.EXRLoader.prototype.PIZReader = function() {
 
 	}
 
-	function hufUnpackEncTable( uInt8Array, inDataView, inOffset, ni, im, iM, hcode ) {
+	function hufUnpackEncTable( uInt8Array, inOffset, ni, im, iM, hcode ) {
 
-		var p = inOffset;
+		var p = inOffset.value;
 		var c = 0;
 		var lc = 0;
 
 		for ( var ii = im; ii <= iM; ii ++ ) {
 
-			if ( p.value - inOffset.value > ni ) return false;
+			if ( inOffset.value - p > ni ) return false;
 
-			getBits( 6, c, lc, uInt8Array, p );
+			getBits( 6, c, lc, uInt8Array, inOffset );
 
 			var l = getBitsReturn.l;
 			c = getBitsReturn.c;
@@ -252,13 +211,13 @@ THREE.EXRLoader.prototype.PIZReader = function() {
 
 			if ( l == LONG_ZEROCODE_RUN ) {
 
-				if ( p.value - inOffset.value > ni ) {
+				if ( inOffset.value - p > ni ) {
 
 					throw 'Something wrong with hufUnpackEncTable';
 
 				}
 
-				getBits( 8, c, lc, uInt8Array, p );
+				getBits( 8, c, lc, uInt8Array, inOffset );
 
 				var zerun = getBitsReturn.l + SHORTEST_LONG_RUN;
 				c = getBitsReturn.c;
@@ -379,7 +338,7 @@ THREE.EXRLoader.prototype.PIZReader = function() {
 
 	const getCodeReturn = { c: 0, lc: 0 };
 
-	function getCode( po, rlc, c, lc, uInt8Array, inDataView, inOffset, outBuffer, outBufferOffset, outBufferEndOffset ) {
+	function getCode( po, rlc, c, lc, uInt8Array, inOffset, outBuffer, outBufferOffset, outBufferEndOffset ) {
 
 		if ( po == rlc ) {
 
@@ -556,7 +515,7 @@ THREE.EXRLoader.prototype.PIZReader = function() {
 
 	}
 
-	function hufDecode( encodingTable, decodingTable, uInt8Array, inDataView, inOffset, ni, rlc, no, outBuffer, outOffset ) {
+	function hufDecode( encodingTable, decodingTable, uInt8Array, inOffset, ni, rlc, no, outBuffer, outOffset ) {
 
 		var c = 0;
 		var lc = 0;
@@ -580,7 +539,7 @@ THREE.EXRLoader.prototype.PIZReader = function() {
 
 					lc -= pl_len;
 
-					getCode( pl_lit, rlc, c, lc, uInt8Array, inDataView, inOffset, outBuffer, outOffset, outBufferEndOffset );
+					getCode( pl_lit, rlc, c, lc, uInt8Array, inOffset, outBuffer, outOffset, outBufferEndOffset );
 
 					c = getCodeReturn.c;
 					lc = getCodeReturn.lc;
@@ -617,7 +576,7 @@ THREE.EXRLoader.prototype.PIZReader = function() {
 
 								lc -= l;
 
-								getCode( pl_arr[ j ], rlc, c, lc, uInt8Array, inDataView, inOffset, outBuffer, outOffset, outBufferEndOffset );
+								getCode( pl_arr[ j ], rlc, c, lc, uInt8Array, inOffset, outBuffer, outOffset, outBufferEndOffset );
 
 								c = getCodeReturn.c;
 								lc = getCodeReturn.lc;
@@ -657,7 +616,7 @@ THREE.EXRLoader.prototype.PIZReader = function() {
 
 				lc -= pl_len;
 
-				getCode( pl_lit, rlc, c, lc, uInt8Array, inDataView, inOffset, outBuffer, outOffset, outBufferEndOffset );
+				getCode( pl_lit, rlc, c, lc, uInt8Array, inOffset, outBuffer, outOffset, outBufferEndOffset );
 
 				c = getCodeReturn.c;
 				lc = getCodeReturn.lc;
@@ -702,7 +661,7 @@ THREE.EXRLoader.prototype.PIZReader = function() {
 
 		var ni = nCompressed - ( inOffset.value - initialInOffset );
 
-		hufUnpackEncTable( uInt8Array, inDataView, inOffset, ni, im, iM, freq );
+		hufUnpackEncTable( uInt8Array, inOffset, ni, im, iM, freq );
 
 		if ( nBits > 8 * ( nCompressed - ( inOffset.value - initialInOffset ) ) ) {
 
@@ -712,7 +671,7 @@ THREE.EXRLoader.prototype.PIZReader = function() {
 
 		hufBuildDecTable( freq, im, iM, hdec );
 
-		hufDecode( freq, hdec, uInt8Array, inDataView, inOffset, nBits, iM, nRaw, outBuffer, outOffset );
+		hufDecode( freq, hdec, uInt8Array, inOffset, nBits, iM, nRaw, outBuffer, outOffset );
 
 	}
 
