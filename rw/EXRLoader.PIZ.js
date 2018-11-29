@@ -152,11 +152,11 @@ THREE.EXRLoader.prototype.PIZReader = function() {
 
 	}
 	
-	function reverseLutFromBitmap( bitmap, lut ) {
+	function reverseLutFromBitmap( bitmap, lut, minNonZero, maxNonZero ) {
 
 		var k = 0;
 
-		for ( var i = 0; i < USHORT_RANGE; ++ i ) {
+		for ( var i = minNonZero << 3; i <= (maxNonZero << 3); ++ i ) {
 
 			if ( ( i == 0 ) || ( bitmap[ i >> 3 ] & ( 1 << ( i & 7 ) ) ) ) {
 
@@ -168,7 +168,7 @@ THREE.EXRLoader.prototype.PIZReader = function() {
 
 		var n = k - 1;
 
-		while ( k < USHORT_RANGE ) lut[ k ++ ] = 0;
+//		while ( k < USHORT_RANGE ) lut[ k ++ ] = 0;
 
 		return n;
 
@@ -207,10 +207,11 @@ THREE.EXRLoader.prototype.PIZReader = function() {
 
 	const hufTableBuffer = new Int32Array( 59 );
 
-	function hufCanonicalCodeTable( hcode ) {
+	function hufCanonicalCodeTable( hcode, im, iM ) {
 
 		for ( var i = 0; i <= 58; ++ i ) hufTableBuffer[ i ] = 0;
-		for ( var i = 0; i < HUF_ENCSIZE; ++ i ) hufTableBuffer[ hcode[ i ] ] += 1;
+		hufTableBuffer[ 0 ] += im + (HUF_ENCSIZE - 1 - iM);
+		for ( var i = im; i <= iM; ++ i ) hufTableBuffer[ hcode[ i ] ] += 1;
 
 		var c = 0;
 
@@ -222,7 +223,7 @@ THREE.EXRLoader.prototype.PIZReader = function() {
 
 		}
 
-		for ( var i = 0; i < HUF_ENCSIZE; ++ i ) {
+		for ( var i = im; i <= iM; ++ i ) {
 
 			var l = hcode[ i ];
 			if ( l > 0 ) hcode[ i ] = l | ( hufTableBuffer[ l ] ++ << 6 );
@@ -237,7 +238,7 @@ THREE.EXRLoader.prototype.PIZReader = function() {
 		var c = 0;
 		var lc = 0;
 
-		for ( ; im <= iM; im ++ ) {
+		for ( var ii = im; ii <= iM; ii ++ ) {
 
 			if ( p.value - inOffset.value > ni ) return false;
 
@@ -247,7 +248,7 @@ THREE.EXRLoader.prototype.PIZReader = function() {
 			c = getBitsReturn.c;
 			lc = getBitsReturn.lc;
 
-			hcode[ im ] = l;
+			hcode[ ii ] = l;
 
 			if ( l == LONG_ZEROCODE_RUN ) {
 
@@ -263,35 +264,35 @@ THREE.EXRLoader.prototype.PIZReader = function() {
 				c = getBitsReturn.c;
 				lc = getBitsReturn.lc;
 
-				if ( im + zerun > iM + 1 ) {
+				if ( ii + zerun > iM + 1 ) {
 
 					throw 'Something wrong with hufUnpackEncTable';
 
 				}
 
-				while ( zerun -- ) hcode[ im ++ ] = 0;
+				while ( zerun -- ) hcode[ ii ++ ] = 0;
 
-				im --;
+				ii --;
 
 			} else if ( l >= SHORT_ZEROCODE_RUN ) {
 
 				var zerun = l - SHORT_ZEROCODE_RUN + 2;
 
-				if ( im + zerun > iM + 1 ) {
+				if ( ii + zerun > iM + 1 ) {
 
 					throw 'Something wrong with hufUnpackEncTable';
 
 				}
 
-				while ( zerun -- ) hcode[ im ++ ] = 0;
+				while ( zerun -- ) hcode[ ii ++ ] = 0;
 
-				im --;
+				ii --;
 
 			}
 
 		}
 
-		hufCanonicalCodeTable( hcode );
+		hufCanonicalCodeTable( hcode, im, iM );
 
 	}
 
@@ -676,6 +677,7 @@ THREE.EXRLoader.prototype.PIZReader = function() {
 
 	}
 
+	var freq = new Int32Array( HUF_ENCSIZE );
 	function hufUncompress( uInt8Array, inDataView, inOffset, nCompressed, outBuffer, outOffset, nRaw ) {
 
 		var initialInOffset = inOffset.value;
@@ -696,7 +698,6 @@ THREE.EXRLoader.prototype.PIZReader = function() {
 		}
 
 		//var freq = new Array( HUF_ENCSIZE );
-		var freq = new Int32Array( HUF_ENCSIZE );
 		var hdec = new Array( HUF_DECSIZE );
 
 		hufClearDecTable( hdec );
@@ -727,6 +728,7 @@ THREE.EXRLoader.prototype.PIZReader = function() {
 
 	}
 
+	var lut = new Uint16Array( USHORT_RANGE );
 	this.decompress = function( outBuffer, outOffset, tmpBufSize, uInt8Array, inDataView, inOffset, num_channels, exrChannelInfos, dataWidth, num_lines ) {
 
 		var bitmap = new Uint8Array( BITMAP_SIZE );
@@ -740,18 +742,12 @@ THREE.EXRLoader.prototype.PIZReader = function() {
 
 		}
 
-		if ( minNonZero <= maxNonZero ) {
-
-			for ( var i = 0; i < maxNonZero - minNonZero + 1; i ++ ) {
-
-				bitmap[ i + minNonZero ] = parseUint8( inDataView, inOffset );
-
-			}
-
+		for ( var i = minNonZero; i < maxNonZero + 1; i ++ ) {
+			bitmap[ i ] = parseUint8( inDataView, inOffset );
 		}
 
-		var lut = new Uint16Array( USHORT_RANGE );
-		var maxValue = reverseLutFromBitmap( bitmap, lut );
+		//var lut = new Uint16Array( USHORT_RANGE );
+		var maxValue = reverseLutFromBitmap( bitmap, lut, minNonZero, maxNonZero );
 
 		var length = parseUint32( inDataView, inOffset );
 
