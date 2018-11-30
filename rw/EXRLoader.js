@@ -672,7 +672,7 @@ THREE.EXRLoader.prototype.serializeRGBAtoEXR = function ( image, rgbData, refHea
 		writeUint8( dataView, cursor, 0 );
 	}
 
-	if (!refHeader)
+	if (!(refHeader && refHeader.headerSource && refHeader.headerSource == 'exr'))
 		refHeader = { };
 	else
 		console.log(refHeader);
