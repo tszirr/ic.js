@@ -1,11 +1,16 @@
 /**
  * @author Richard M. / https://github.com/richardmonette
+ * This version contains some additional modifications, adding ZIP decoding,
+ * full-precision FLOATs and basic EXR writing.
+ * Also, PIZ decoding conformance and performance have been improved.
+ * @author Tobias Z. / https://github.com/tszirr/ic.js
  *
- * OpenEXR loader which, currently, supports reading 16 bit half data, in either
- * uncompressed or PIZ wavelet compressed form.
+ * OpenEXR loader which, currently, supports reading 16-bit half and 32-bit float
+ * data, in either uncompressed, PIZ-wavelet-compressed, or ZIP-compressed form.
+ * Also, basic uncompressed FLOAT image writing is supported.
  *
- * Referred to the original Industrial Light & Magic OpenEXR implementation and the TinyEXR / Syoyo Fujita
- * implementation, so I have preserved their copyright notices.
+ * Referred to the original Industrial Light & Magic OpenEXR implementation and the
+ * TinyEXR / Syoyo Fujita implementation, so I have preserved their copyright notices:
  */
 
 // /*
