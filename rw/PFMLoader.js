@@ -16,12 +16,16 @@ THREE.PFMLoader.prototype._parser = function ( buffer ) {
 	var cursor = { value: 0 };
 	
 	function decode_utf8( uintBuffer, offset, endOffset ) {
-		if (TextDecoder)
+		if (typeof TextDecoder !== 'undefined')
 			return new TextDecoder().decode(
 				uintBuffer.slice( offset, endOffset )
 			)
-		else
-			return decodeURIComponent(escape(String.fromCharCode( uintBuffer.subarray( offset, endOffset ).values() )));
+		else {
+			var cs = uintBuffer.subarray( offset, endOffset ).values();
+			cs = String.fromCharCode(cs);
+			cs = escape(cs);
+			return decodeURIComponent();
+		}
 	}
 	function parseString( uintBuffer, cursor ) {
 		var endOffset = cursor.value;
@@ -65,7 +69,7 @@ THREE.PFMLoader.prototype._parser = function ( buffer ) {
 		try {
 			dataBytes = new Float32Array( buffer, cursor.value );
 		}
-		catch {
+		catch(err) {
 			// in case unaligned access is forbidden ...
 			dataBytes = new Float32Array( buffer.slice(cursor.value), 0 );
 		}
@@ -90,7 +94,7 @@ THREE.PFMLoader.prototype._parser = function ( buffer ) {
 
 THREE.PFMLoader.prototype.serializeRGBtoPF = function ( image, rgbData ) {
 	function encode_utf8(s) {
-		if (TextEncoder)
+		if (typeof TextEncoder !== 'undefined')
 			return new TextEncoder().encode(s);
 		else {
 			var chars = unescape(encodeURIComponent(s));

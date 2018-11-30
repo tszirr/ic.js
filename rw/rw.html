@@ -83,9 +83,38 @@
 				pointer-events: none;
 			}
 			#tutorial-arrow > div { font-size:50%; }
+			#browser-warning {
+				position:absolute;
+				width:100%;
+				padding:5%;
+				font-family: monospace;
+				z-index:500;
+				color: #cc0044;
+				font-size: 100px;
+				font-weight: bolder;
+				text-align:center;
+				background:yellow;
+			}
+			#browser-warning > div { font-size:50%; }
 		</style>
 	</head>
 	<body>
+		<div id="browser-warning">
+			Requires JavaScript<div>(Tested on Chrome and Firefox, only)</div>
+			<script>
+				var isChrome = /Chrome/i.test(navigator.userAgent) && /Google Inc/i.test(navigator.vendor);
+				var isFirefox = /Firefox/i.test(navigator.userAgent) && /Mozilla/i.test(navigator.userAgent);
+				var browserWarningElement = document.currentScript.parentNode;
+				function removeBrowserWarning() {
+					browserWarningElement.style.display = 'none';
+					browserWarningElement.parentNode.removeChild(browserWarningElement);
+				}
+				if (isChrome || isFirefox)
+					removeBrowserWarning();
+				else
+					browserWarningElement.onclick = removeBrowserWarning;
+			</script>
+		</div>
 
 		<div id="hiddenInterface">
 			<input id="input-button" type="file" multiple="true" style="visibility:hidden;">
@@ -135,9 +164,9 @@
 			}
 			var defaultCascadeBase = 8;
 			var urlInputs = [];
-			var exampleScenes = [ 'Bathroom', completeInputs('bathroom/prog.dbg.2048', 8, 1, 6),
-				'Flashlight', completeInputs('flashlight/prog.dbg.8192', 8, 1, 6),
-				'Torus', completeInputs('torus/prog.dbg.1024', 8, 1, 6) ];
+			var exampleScenes = [ 'bathroom', 'Bathroom [18 MB]', completeInputs('bathroom/prog.dbg.2048', 8, 1, 6),
+				'flashlight', 'Flashlight [12 MB]', completeInputs('flashlight/prog.dbg.8192', 8, 1, 6),
+				'torus', 'Torus [7.5 MB] ', completeInputs('torus/prog.dbg.1024', 8, 1, 6) ];
 			var urlExample;
 			{
 				var urlParams = new URLSearchParams(document.location.search);
@@ -231,10 +260,10 @@
 				gamma: { value: 2.2 },
 				picture: { },
 			};
+			var windowHalfX, windowHalfY;
 			init();
 			var gui = new UiParameters();
 			tutorial();
-			animate();
 			function infoText(infotext) {
 				document.getElementById( 'info-output' ).innerHTML = infotext;
 			}
@@ -286,8 +315,6 @@
 				infoText('renderer ready');
 			}
 			//
-			var windowHalfX = window.innerWidth / 2;
-			var windowHalfY = window.innerHeight / 2;
 			function onWindowResize() {
 				windowHalfX = window.innerWidth / 2;
 				windowHalfY = window.innerHeight / 2;
@@ -486,10 +513,10 @@
 
 				this.exampleFolder = this.ui.addFolder('Examples');
 				this.exampleFolder.open();
-				for (var i = 0; i < exampleScenes.length; i+=2) {
+				for (var i = 0; i < exampleScenes.length; i+=3) {
 					var exampleName = 'example_' + exampleScenes[i];
-					this[exampleName] = function() { var files = exampleScenes[i+1]; return function() { loadRemoteInputs(files); }; }();
-					this.exampleFolder.add(this, exampleName).name(exampleScenes[i]);
+					this[exampleName] = function() { var files = exampleScenes[i+2]; return function() { loadRemoteInputs(files); }; }();
+					this.exampleFolder.add(this, exampleName).name(exampleScenes[i+1]);
 				}
 				this.showSource = function() {
 					printOutput(rwMaterial.fragmentShader, formatGLSL);
@@ -504,9 +531,9 @@
 			}
 			function tutorial() {
 				if (urlExample) {
-					for (var i = 0; i < exampleScenes.length; i+=2) {
-						if (exampleScenes[i] == urlExample) {
-							loadRemoteInputs(exampleScenes[i+1]);
+					for (var i = 0; i < exampleScenes.length; i+=3) {
+						if (exampleScenes[i].toUpperCase() == urlExample.toUpperCase()) {
+							loadRemoteInputs(exampleScenes[i+2]);
 						}
 					}
 					infoText('example processed, you can also load your own files!');
@@ -682,6 +709,7 @@
 					renderer.render(scene, camera);
 				}
 			}
+			animate();
 		</script>
 	</body>
 </html>

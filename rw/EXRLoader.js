@@ -98,7 +98,7 @@ THREE.EXRLoader.prototype._parser = function ( buffer ) {
 	const INT8_SIZE = 1;
 
 	function decode_utf8( uintBuffer, offset, endOffset ) {
-		if (TextDecoder)
+		if (typeof TextDecoder !== 'undefined')
 			return new TextDecoder().decode(
 				uintBuffer.slice( offset, endOffset )
 			)
@@ -592,7 +592,7 @@ THREE.EXRLoader.prototype.serializeRGBAtoEXR = function ( image, rgbData, refHea
 	var ULONG_BYTES = 8;
 
 	function encode_utf8(s) {
-		if (TextEncoder)
+		if (typeof TextEncoder !== 'undefined')
 			return new TextEncoder().encode(s);
 		else {
 			var chars = unescape(encodeURIComponent(s));
