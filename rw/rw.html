@@ -14,12 +14,20 @@
 				color: orange;
 				text-decoration: none;
 			}
+			a.bright {
+				color: #eeeeff !important;
+				text-decoration: underline;
+				text-decoration-style: dotted;
+			}
 			a:hover {
 				color: #0080ff;
 			}
 			#hiddenInterface { display:none; }
 			.dg.ac {
 				z-index:20 !important;
+			}
+			.dg .function .property-name {
+				width:95% !important;
 			}
 			#info {
 				position: absolute;
@@ -42,8 +50,18 @@
 				text-align: left;
 				max-height: 90vh;
 				overflow: auto;
-				background: rgba(0,0,0,0.5);
+				background: rgba(0,0,0,0.8);
+				padding:4px;
 				display: none;
+			}
+			#print-output > .kw {
+				color: #aaaaff;
+			}
+			#print-output .cm {
+				color: #ffaaaa;
+			}
+			#print-output .cmm {
+				color: #ff6666;
 			}
 			#print-indicator {
 				background: rgba(255,0,.1,0.5);
@@ -90,7 +108,7 @@
 			<a href="http://threejs.org" target="_blank" rel="noopener">three.js</a>
 			<a href="https://github.com/mrdoob/three.js/blob/dev/examples/js/loaders/EXRLoader.js" target="_blank" rel="noopener">EXRLoader.js</a>
 			<a href="http://nodeca.github.io/pako/" target="_blank" rel="noopener">pako.js</a></span>
-			- Reweighted Monte Carlo
+			- <a class="bright" href="https://cg.ivd.kit.edu/rwmc.php" target="_blank" rel="noopener">Reweighted Monte Carlo Viewer</a>
 			[ <span id="info-output"></span> ] <span id="print-indicator">Output <i></i>Available</span>
 			<pre id="print-output"></pre>
 		</div>
@@ -177,6 +195,8 @@
 		<script src="passpart.fs" type="x-shader/x-fragment" id="passpart-shader"></script>
 		<script src="empty.fs" type="x-shader/x-fragment" id="empty-shader"></script>
 
+		<script src="split.cpp" type="text/plain" id="sample-split"></script>
+
 		<script>
 			function loadScript(script) {
 				var xhrObj = new XMLHttpRequest();
@@ -228,9 +248,23 @@
 			function infoText(infotext) {
 				document.getElementById( 'info-output' ).innerHTML = infotext;
 			}
-			function printOutput(text) {
+			function formatGLSL(x) {
+				x = x.replace(/(for|if|while|return|void|int|float|bool|struct|const|uniform|vec[1-4]|sampler.D)/g, '<span class="kw">$1</span>');
+				x = x.replace(/(\/\/.*)/g, '<span class="cm">$1</span>');
+				x = x.replace(/(\/\*[\s\S]*?\*\/)/gm, '<span class="cmm">$1</span>');
+				return x;
+			}
+			function formatCXX(x) {
+				x = x.replace(/(for|if|while|return|void|int|float|bool|struct|const)/g, '<span class="kw">$1</span>');
+				x = x.replace(/(\/\/.*)/g, '<span class="cm">$1</span>');
+				x = x.replace(/(\/\*[\s\S]*?\*\/)/gm, '<span class="cmm">$1</span>');
+				return x;
+			}
+			function printOutput(text, formatter) {
 				var out = document.getElementById( 'print-output' );
-				out.innerHTML = rwMaterial.fragmentShader;
+				out.textContent = text;
+				if (formatter)
+					out.innerHTML = formatter(out.innerHTML);
 
 				document.getElementById( 'print-indicator' ).style.display = 'inline-block';				
 				out.style.display = 'block';
@@ -466,9 +500,13 @@
 					this.exampleFolder.add(this, exampleName).name(exampleScenes[i]);
 				}
 				this.showSource = function() {
-					printOutput(rwMaterial.fragmentShader);
+					printOutput(rwMaterial.fragmentShader, formatGLSL);
 				};
-				this.ui.add(this, 'showSource').name('Show source');
+				this.showSplitSource = function() {
+					printOutput(loadScript(document.getElementById('sample-split')), formatCXX);
+				};
+				this.ui.add(this, 'showSource').name('Show Reweighting Source');
+				this.ui.add(this, 'showSplitSource').name('Show Source for Renderer');
 
 				infoText('documents processed');
 			}
