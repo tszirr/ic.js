@@ -432,7 +432,7 @@
 				this.kappa = 32;
 				this.rwFolder = this.ui.addFolder('Reweighting');
 				this.rwFolder.open();
-				this.rwFolder.add(this, 'kappa', 1, 128).name('K ("min spp")').listen();
+				this.rwFolder.add(this, 'kappa', 1.e-9, 128).name('K ("min spp")').listen();
 
 				this.exposure = 1;
 				this.gamma = passUniforms.gamma.value;

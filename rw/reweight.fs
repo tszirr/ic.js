@@ -87,6 +87,10 @@ void main() {
 	reliability = (reliability + colorReliability) * .5;
 	reliability = clamp(reliability, 0., 1.);
 	
+	// allow re-weighting to be disabled esily for the viewer demo
+	if (!(oneOverK < 1.e6))
+		reliability = 1.;
+
 	gl_FragColor += reliability * texture2D(curr, c/size, 0.);
 }
 
