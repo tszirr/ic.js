@@ -1,0 +1,774 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<title>Textured Displacement Unwarping</title>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+		<style>
+			body {
+				background-color: #000000;
+				margin: 0px;
+				overflow: hidden;
+			}
+			a {
+				color: orange;
+				text-decoration: none;
+			}
+			a.bright {
+				color: #eeeeff !important;
+				text-decoration: underline;
+				text-decoration-style: dotted;
+			}
+			a:hover {
+				color: #0080ff;
+			}
+			#hiddenInterface { display:none; }
+			.dg.ac {
+				z-index:20 !important;
+			}
+			.dg .function .property-name {
+				width:95% !important;
+			}
+			#info {
+				position: absolute;
+				top: 10px; left:15%; width: 70%;
+				color: #ffffff;
+				padding: 5px;
+				font-family: Monospace;
+				font-size: 13px;
+				text-align: center;
+				z-index:10;
+			}
+			#info:hover #print-output {
+				display:block;
+			}
+			.btw-info { color:#bbb; }
+			#print-output {
+				position: relative;
+				text-align: left;
+				max-height: 90vh;
+				overflow: auto;
+				background: rgba(0,0,0,0.8);
+				display: none;
+			}
+			#print-output > .kw { color: #aaaaff; }
+			#print-output > .cm { color: #ffaaaa; }
+			#print-output > .cmm { color: #ff6666; }
+			#print-output > .lic { color: #882222; display:none; }
+			#print-indicator {
+				background: rgba(255,0,.1,0.5);
+				display: none;
+				position: relative;
+			}
+			#print-indicator i {
+				position: absolute;
+				width:10px;
+				height:10px;
+				bottom:-13px;
+				left:45%;
+				border:0px solid rgba(255,0,.1,0.5);
+				border-left-width: 4px;
+				border-bottom-width: 4px;
+				transform: rotate(-45deg);
+			}
+			#tutorial-arrow {
+				position: absolute;
+				font-family: monospace;
+				right: 400px; top: 150px;
+				z-index:5;
+				color: #cc0044;
+				font-size: 100px;
+				font-weight: bolder;
+				display: none;
+				pointer-events: none;
+			}
+			#tutorial-arrow > div { font-size:50%; }
+			#browser-warning {
+				position:absolute;
+				width:100%;
+				padding:5%;
+				font-family: monospace;
+				z-index:500;
+				color: #cc0044;
+				font-size: 100px;
+				font-weight: bolder;
+				text-align:center;
+				background:yellow;
+			}
+			#browser-warning > div { font-size:50%; }
+		</style>
+	</head>
+	<body>
+		<div id="browser-warning">
+			Requires JavaScript<div>(Tested on Chrome and Firefox, only)</div>
+			<script>
+				var isChrome = /Chrome/i.test(navigator.userAgent) && /Google Inc/i.test(navigator.vendor);
+				var isFirefox = /Firefox/i.test(navigator.userAgent) && /Mozilla/i.test(navigator.userAgent);
+				var browserWarningElement = document.currentScript.parentNode;
+				function removeBrowserWarning() {
+					browserWarningElement.style.display = 'none';
+					browserWarningElement.parentNode.removeChild(browserWarningElement);
+				}
+				if (isChrome || isFirefox)
+					removeBrowserWarning();
+				else
+					browserWarningElement.onclick = removeBrowserWarning;
+			</script>
+		</div>
+
+		<div id="hiddenInterface">
+			<input id="input-button" type="file" multiple="true" style="visibility:hidden;">
+			<span id="output-area" style="visibility:hidden;"></span>
+		</div>
+
+		<div id="info">
+			<span class="btw-info"><a href="https://github.com/tszirr/ic.js/tree/master/rw" target="_blank" rel="noopener">ic.js</a>
+			uses
+			<a href="http://threejs.org" target="_blank" rel="noopener">three.js</a>
+			<a href="https://github.com/mrdoob/three.js/blob/dev/examples/js/loaders/EXRLoader.js" target="_blank" rel="noopener">EXRLoader.js</a>
+			<a href="http://nodeca.github.io/pako/" target="_blank" rel="noopener">pako.js</a></span>
+			- <a class="bright" href="https://cg.ivd.kit.edu/rwmc.php" target="_blank" rel="noopener">Textured Displacement Unwarping</a>
+			[ <span id="info-output"></span> ] <span id="print-indicator">Text<i></i> Viewer</span>
+			<pre id="print-output"></pre>
+		</div>
+
+		<div id="tutorial-arrow">
+			Load something ><div>(Examples or your own)</div>
+		</div>
+
+		<script src="three.min.js"></script>
+		<script src="dat.gui.min.js"></script>
+		
+		<script src="pako_inflate.min.js"></script>
+		<script src="EXRLoader.js"></script>
+		<script src="EXRLoader.PIZ.js"></script>
+		<script src="PFMLoader.js"></script>
+		<script>
+			var imageLoaders = {
+				any: { formats: ['png','jpg','jpeg'], loader: new THREE.TextureLoader() },
+				exr: { formats: ['exr'], loader: new THREE.EXRLoader() },
+				pfm: { formats: ['pfm', 'ppm'], loader: new THREE.PFMLoader() },
+			};
+			var imageWriters = [
+				{ format: 'exr', write: imageLoaders.exr.loader.serializeRGBAtoEXR.bind(imageLoaders.exr.loader), knownRowOrder: true },
+				{ format: 'pfm', write: imageLoaders.pfm.loader.serializeRGBtoPF.bind(imageLoaders.pfm.loader), knownRowOrder: false },
+			];
+			imageWriters.push({format:'bla'});
+			console.log(imageWriters);
+			imageWriters = imageWriters.slice(0);
+			console.log(imageWriters);
+		</script>
+
+		<script>
+			function completeInputs(basename, cascadeBase, cascasdeStart, cascadeSize) {
+				var inputs = [ basename + '.regular.exr' ];
+				for (var i = 0, b = cascasdeStart * cascadeBase; i < cascadeSize; i++, b *= cascadeBase) {
+					inputs.push( basename + '.light_min' + b + '.exr' );
+				}
+				return inputs;
+			}
+			var defaultCascadeBase = 8;
+			var urlInputs = [];
+			var exampleScenes = [ 'bathroom', 'Bathroom [18 MB]', completeInputs('bathroom/prog.dbg.2048', 8, 1, 6),
+				'flashlight', 'Flashlight [12 MB]', completeInputs('flashlight/prog.dbg.8192', 8, 1, 6),
+				'torus', 'Torus [7.5 MB] ', completeInputs('torus/prog.dbg.1024', 8, 1, 6) ];
+			var urlExample;
+			{
+				var urlParams = new URLSearchParams(document.location.search);
+				console.log(document.location.href)
+				var param;
+				if (param = urlParams.get('cascadeBase'))
+					defaultCascadeBase = param;
+				if (param = urlParams.get('inputs-basename'))
+					urlInputs = completeInputs(param, defaultCascadeBase, 1, 6);
+				urlExample = urlParams.get('example');
+			}
+			// input sorting
+			function extractInput(inputs, func) {
+				var i = inputs.find(func) || null;
+				if (i) inputs.splice(inputs.indexOf(i), 1);
+				return i;
+			}
+			function sortInputs(inputs_, getName) {
+				var struct = { };
+				var inputs = inputs_.slice(0);
+				struct.displace = extractInput(inputs, function (e) { return getName(e).toLowerCase().includes('displace'); });
+				struct.color = extractInput(inputs, function (e) { return getName(e).toLowerCase().includes('color'); });
+				if (!struct.displace && inputs.length > 0)
+					struct.displace = inputs.pop();
+				if (!struct.color && inputs.length > 0)
+					struct.color = inputs.pop();
+				return struct;
+			}
+		</script>
+
+		<script src="fullscreen.vs" type="x-shader/x-vertex" id="vertex-shader"></script>
+		<script src="reweight.fs" type="x-shader/x-fragment" id="reweighting-shader"></script>
+		<script src="passpart.fs" type="x-shader/x-fragment" id="passpart-shader"></script>
+		<script src="empty.fs" type="x-shader/x-fragment" id="empty-shader"></script>
+		<script src="inituv.fs" type="x-shader/x-fragment" id="inituv-shader"></script>
+		<script src="energy.glsl" type="x-shader/x-fragment" id="energy-shader"></script>
+		<script src="correct.glsl" type="x-shader/x-fragment" id="correct-shader"></script>
+
+		<script src="split.cpp" type="text/plain" id="sample-split"></script>
+
+		<script>
+			function loadScript(script) {
+				var xhrObj = new XMLHttpRequest();
+				xhrObj.overrideMimeType(script.type);
+				xhrObj.open('GET', script.src, false);
+				xhrObj.send();
+				return xhrObj.responseText;
+			}
+			var defaultVertexShader = loadScript(document.getElementById('vertex-shader'));
+			function loadShader(id, uniformMap, main_id) {
+				var fs = loadScript(document.getElementById(id));
+				if (main_id) {
+					var fsmain = loadScript(document.getElementById(main_id));
+					fs += '\nvoid main() {\n' + fsmain + '\n}';
+				}
+				var shader = {
+						uniforms: uniformMap,
+						vertexShader: defaultVertexShader,
+						fragmentShader: fs 
+					};
+				return shader;
+			}
+		</script>
+
+		<script>
+			var renderer, scpp = {}, sc2d = {}, sc3d = {};
+			var inputImages = { color: null, displace: null };
+			var outputTexture, outputBuffer;
+			var rwMaterial, rwUniforms = {
+				cropOffset: { },
+				size: { },
+				picture: { },
+				hasPicture: { },
+				hasMore: { },
+				prev: { },
+				curr: { },
+				next: { },
+				oneOverK: { },
+				currScale: { },
+				cascadeBase: { },
+			};
+			var optMaterial, optUniforms = {
+				displaceTex: {},
+				correctionOffsetTex: {},
+				pinTex: { value: null },
+				resolution: {},
+				pixelWidth: {},
+				
+				displacementScale: { value: .15 },
+				fixBoundary: { value: false },
+				iterationIdx: { value: 0 }
+			};
+			var emptyMaterial, initMaterial, passMaterial, passUniforms = {
+				offset: { },
+				size: { },
+				exposure: { },
+				flipY: { value: false },
+				gamma: { value: 2.2 },
+				picture: { },
+			};
+			var resetState = true;
+			var windowHalfX, windowHalfY;
+			init();
+			var gui = new UiParameters();
+			tutorial();
+			function infoText(infotext) {
+				document.getElementById( 'info-output' ).innerHTML = infotext;
+			}
+			function formatComments(x) {
+				x = x.replace(/(\/\/.*)/g, '<span class="cm">$1</span>');
+				x = x.replace(/(\/\*\s*?Permission is hereby granted[\s\S]*?\*\/)/gm, '<span class="lic">$1</span>');
+				x = x.replace(/(\/\*[\s\S]*?\*\/)/gm, '<span class="cmm">$1</span>');
+				return x;
+			}
+			function formatGLSL(x) {
+				x = x.replace(/(for|if|while|return|void|int|float|bool|struct|const|uniform|vec[1-4]|sampler.D)/g, '<span class="kw">$1</span>');
+				return formatComments(x);
+			}
+			function formatCXX(x) {
+				x = x.replace(/(for|if|while|return|void|int|float|bool|struct|const)/g, '<span class="kw">$1</span>');
+				return formatComments(x);
+			}
+			function printOutput(text, formatter) {
+				var out = document.getElementById( 'print-output' );
+				out.textContent = text;
+				if (formatter)
+					out.innerHTML = formatter(out.innerHTML);
+
+				document.getElementById( 'print-indicator' ).style.display = 'inline-block';				
+				out.style.display = 'block';
+				window.setTimeout(function(){ out.style.display = null; }, 3000);
+			}
+			function init() {
+				infoText('loading');
+				renderer = new THREE.WebGLRenderer( { antialias: false, depth: false, stencil: false } );
+				// todo: wait for three js SRGB framebuffer support
+				renderer.setPixelRatio( 1 ); // window.devicePixelRatio;
+				//
+				window.addEventListener( 'resize', onWindowResize, false );
+				onWindowResize();
+				document.body.appendChild( renderer.domElement );
+				//
+				sc2d.scene = new THREE.Scene();
+				sc2d.camera = new THREE.OrthographicCamera( - 1, 1, 1, - 1, 0, 1 );
+				sc2d.scene.add( sc2d.camera );
+				var make2DQuad = function(scene, x, y, s) {
+					var m = new THREE.MeshBasicMaterial();
+					var q = new THREE.Mesh( new THREE.PlaneBufferGeometry( 2, 2 ), m );
+					q.frustumCulled = false;
+					q.position.x = x;
+					q.position.y = y;
+					q.scale.set( s, s, s );
+					scene.add( q );
+					return { quad: q, material: m };
+				}
+				sc2d.color = make2DQuad(sc2d.scene, -.75, .75, .24);
+				sc2d.displace = make2DQuad(sc2d.scene, -.75, .25, .24);
+				sc2d.correction = make2DQuad(sc2d.scene, -.75, -.25, .24);
+				//
+				sc3d.scene = new THREE.Scene();
+				sc3d.camera = new THREE.PerspectiveCamera( 45, 1, .02, 20 );
+				sc3d.camera.position.set(1, 1, 1);
+				sc3d.camera.lookAt(0,.15,0);
+				sc3d.sun = new THREE.DirectionalLight( 0xffffff, 0.5 );
+				sc3d.scene.add( sc3d.sun );
+				sc3d.material = new THREE.MeshStandardMaterial();
+				sc3d.material.displacementScale = sc3d.material.bumpScale = optUniforms.displacementScale.value;
+				sc3d.quad = new THREE.Mesh( new THREE.PlaneBufferGeometry( 1, 1, 32, 32 ), sc3d.material );
+				sc3d.quad.rotateX(-1.55);
+				sc3d.quad.frustumCulled = false;
+				sc3d.scene.add( sc3d.quad );
+				//
+				scpp.scene = new THREE.Scene();
+				scpp.camera = new THREE.OrthographicCamera( - 1, 1, 1, - 1, 0, 1 );
+				scpp.scene.add( scpp.camera );
+				scpp.quad = new THREE.Mesh( new THREE.PlaneBufferGeometry( 2, 2 ), null );
+				scpp.quad.frustumCulled = false;
+				scpp.scene.add( scpp.quad );
+				//
+				rwMaterial = new THREE.ShaderMaterial( loadShader('reweighting-shader', rwUniforms) );
+				optMaterial = new THREE.ShaderMaterial( loadShader('energy-shader', optUniforms, 'correct-shader') );
+				emptyMaterial = new THREE.ShaderMaterial( loadShader('empty-shader', {}) );
+				initMaterial = new THREE.ShaderMaterial( loadShader('inituv-shader', {}) );
+				passMaterial = new THREE.ShaderMaterial( loadShader('passpart-shader', passUniforms) );
+				//
+				infoText('renderer ready');
+			}
+			//
+			function onWindowResize() {
+				windowHalfX = window.innerWidth / 2;
+				windowHalfY = window.innerHeight / 2;
+				renderer.setSize( window.innerWidth, window.innerHeight );
+			}
+			//
+			function FileImage(fileName) {
+				this.file = fileName;
+				this.texture = null;
+				this.load = function(data) {
+					var scope = this;
+					var loaded = false;
+					var textureSetup = function ( texture, textureData ) {
+						console.log(scope.file);
+//						texture.minFilter = THREE.NearestFilter;
+//						texture.magFilter = THREE.NearestFilter;
+//						texture.generateMipmaps = false;
+						scope.texture = texture;
+						loaded = true;
+						if (textureData && textureData.header)
+							scope.header = textureData.header;
+					}
+
+					for (var table of Object.values(imageLoaders)) {
+						for (var format of table.formats) {
+							if (this.file.name.endsWith(format)) {
+								table.loader.load( data, textureSetup );
+								return loaded;
+							}
+						}
+					}
+					for (var table of Object.values(imageLoaders)) {
+						try {
+							table.loader.load( data, textureSetup );
+						}
+						catch (err) {  }
+						if (loaded)
+							return true;
+					}
+					return false;
+				};
+				this.dispose = function() {
+					// prevent delayed loading after dispose
+					this.load = function() { };
+					// memory management!
+					if (this.texture != null)
+						this.texture.dispose();
+				}
+			}
+			function acceptInputs(newFiles) {
+				newInputs = sortInputs(newFiles, function(a) { return a.file.name; });
+				disposeImages = Object.values(inputImages);
+				inputImages = newInputs;
+				console.log(inputImages);
+				// ui
+				{
+					// document
+					infoText(document.title = newFiles[0].file.name);
+					var filePath = newFiles[0].file.name.split('/');
+					var fileExtended = filePath[filePath.length-1].split('.');
+					gui.outputName = fileExtended[Math.max(fileExtended.length-2, 0)];
+				}
+				tutorialAccepted();
+				// memory management!
+				for (img of disposeImages) {
+					if (img)
+						img.dispose();
+				}
+			}
+			function loadRemoteInputs(urls) {
+				var newInputs = [];
+				for (var fileName of urls) {
+					var img = new FileImage( { name: fileName } );
+					newInputs.push(img);
+
+					var xhrObj = new XMLHttpRequest();
+					xhrObj.open('GET', fileName, true);
+					xhrObj.overrideMimeType('application/octet-stream');
+					xhrObj.responseType = 'blob';
+					xhrObj.onload = function () {
+						var scope = img;
+						var req = xhrObj;
+						return function() {
+							var contenttype = req.getResponseHeader("Content-Type");
+							if (!contenttype || !contenttype.includes('text')) {
+								var fileUrl = URL.createObjectURL(req.response);
+								try {
+									scope.load(fileUrl);
+								} catch(err) {
+									window.alert(err);
+								}
+								URL.revokeObjectURL(fileUrl);
+							}
+							else {
+								var reader = new FileReader();
+								reader.onload = function(evt) { window.alert(evt.target.result); }
+								reader.readAsText( req.response );
+							}
+							
+						};
+					}();
+					xhrObj.send();
+				}
+				acceptInputs(newInputs);
+			}
+			function UiParameters() {
+				this.ui = new dat.GUI();
+				
+				this.kappa = 32;
+				this.rwFolder = this.ui.addFolder('Reweighting');
+				this.rwFolder.open();
+				this.rwFolder.add(this, 'kappa', 1.e-9, 128).name('K ("min spp")').listen();
+
+				this.exposure = 1;
+				this.gamma = passUniforms.gamma.value;
+				var adjustFolder = this.ui.addFolder('Adjustments');
+				adjustFolder.open();
+				adjustFolder.add(this, 'exposure', -2, 3).listen();
+				adjustFolder.add(this, 'gamma', 1, 2.5);
+
+				this.spp = 1024;
+				this.cascadeBase = defaultCascadeBase;
+				this.cascadeStart = 1;
+				var inputDataFolder = this.ui.addFolder('Input Description');
+				inputDataFolder.add(this, 'spp', 32, 4096).listen();
+				inputDataFolder.add(this, 'cascadeBase', 1, 8).listen();
+				inputDataFolder.add(this, 'cascadeStart', .125, 4).listen();
+
+				var scope = this;
+
+				function handleFileSelect(evt) {
+					if (evt.target.files.length < 1)
+						return;
+					var newInputs = [];
+					for (var fileName of evt.target.files) {
+						var img = new FileImage(fileName);
+						newInputs.push(img);
+
+						var fileUrl = URL.createObjectURL(fileName);
+						try {
+							img.load(fileUrl);
+						} catch(err) {
+							window.alert(err);
+						}
+						URL.revokeObjectURL(fileUrl);
+					}
+					acceptInputs(newInputs);
+				};
+				var inputButton = document.getElementById('input-button');
+				inputButton.addEventListener('change', handleFileSelect, false);
+				this.loadFiles = function() { inputButton.click(); };
+				this.loadFlipped = false;
+				this.ui.add(this, 'loadFiles').name('Load EXR/PFM/PPM');
+				this.ui.add(this, 'loadFlipped').name('Flipped');
+
+				var outputArea = document.getElementById('output-area');
+				var saveFolder = this.ui.addFolder('Save');
+				this.outputName = 'Untitled';
+				saveFolder.add(this, 'outputName').name('Name').listen();
+				this.saveFile = function(writer) {
+					try {
+						var result = readBack(writer.knownRowOrder ? scope.loadFlipped : scope.reverseRowOrder);
+						var resultFile = writer.write(result, result.bytes, inputImages[0].header);
+						var a = document.createElement("a");
+						a.download = this.outputName + '.' + writer.format;
+						a.type = 'application/octet-stream';
+						a.href = URL.createObjectURL(resultFile);
+						try {
+							outputArea.appendChild(a);
+							a.click();
+						}
+						finally {
+							setTimeout(function() {
+								outputArea.removeChild(a);
+								URL.revokeObjectURL(a.href);
+							}, 0); 
+						}
+					}
+					catch (err) {
+						window.alert(err);
+					}
+				};
+				for (var writer of imageWriters) {
+					var writerGuiAttribute = 'saveFile_' + writer.format;
+					this[writerGuiAttribute] = function() { var fixedWriter = writer; return function() { scope.saveFile(fixedWriter); } }();
+					saveFolder.add(this, writerGuiAttribute).name('Write ' + writer.format.toUpperCase());
+				}
+				this.reverseRowOrder = false;
+				saveFolder.add(this, 'reverseRowOrder').name('Reverse');
+
+				this.exampleFolder = this.ui.addFolder('Examples');
+				this.exampleFolder.open();
+				for (var i = 0; i < exampleScenes.length; i+=3) {
+					var exampleName = 'example_' + exampleScenes[i];
+					this[exampleName] = function() { var files = exampleScenes[i+2]; return function() { loadRemoteInputs(files); }; }();
+					this.exampleFolder.add(this, exampleName).name(exampleScenes[i+1]);
+				}
+				this.showSource = function() {
+					printOutput(rwMaterial.fragmentShader, formatGLSL);
+				};
+				this.showSplitSource = function() {
+					printOutput(loadScript(document.getElementById('sample-split')), formatCXX);
+				};
+				this.ui.add(this, 'showSource').name('Show Reweighting Source');
+				this.ui.add(this, 'showSplitSource').name('Show Source for Renderer');
+
+				infoText('documents processed');
+			}
+			function tutorial() {
+				if (urlExample) {
+					for (var i = 0; i < exampleScenes.length; i+=3) {
+						if (exampleScenes[i].toUpperCase() == urlExample.toUpperCase()) {
+							loadRemoteInputs(exampleScenes[i+2]);
+						}
+					}
+					infoText('example processed, you can also load your own files!');
+				}
+				// nothing loaded yet
+				if (inputImages.length < 1)
+					document.getElementById('tutorial-arrow').style.display = 'block';
+			}
+			function tutorialAccepted() {
+				document.getElementById('tutorial-arrow').style.display = 'none';
+			}
+			var prevTime = null;
+			function animate() {
+//				requestAnimationFrame( animate );
+				
+				var time = performance.now();
+				if (!prevTime)
+					prevTime = time;
+				var delta = ( time - prevTime ) / 1000;
+				
+				var aspectScreen = windowHalfY / windowHalfX;
+				sc3d.camera.aspect = windowHalfX / windowHalfY;
+				sc3d.camera.updateProjectionMatrix();
+				{
+					var imageWidth = 1, imageHeight = 1;
+					if (inputImages.displace && inputImages.displace.texture) {
+						imageWidth = inputImages.displace.texture.image.width;
+						imageHeight = inputImages.displace.texture.image.height;
+					}
+					var aspectX = Math.min(1, imageWidth / imageHeight) * aspectScreen;
+					var aspectY = Math.min(1, imageHeight / imageWidth);
+					var updateImageAspect = function(obj) {
+						obj.scale.set(aspectX * obj.scale.z, aspectY * obj.scale.z, obj.scale.z);
+					};
+					updateImageAspect(sc2d.color.quad);
+					updateImageAspect(sc2d.displace.quad);
+					updateImageAspect(sc2d.correction.quad);
+				}
+
+				render();
+
+				prevTime = time;
+
+				window.setTimeout(animate, 1000 / 5);
+			}
+/*			function readBack(flipY) {
+				var resultData = null;
+				var imgTexture = renderResult();
+				if (imgTexture && wasComplete) {
+					var resultTarget = processResult(imgTexture, flipY);
+					var resultBuffer = new Float32Array(4 * resultTarget.width * resultTarget.height);
+					// read back
+					var resultTextureFormat = resultTarget.texture.format;
+					resultTarget.texture.format = THREE.RGBAFormat; // format for readback only!
+					renderer.readRenderTargetPixels(resultTarget, 0, 0, resultTarget.width, resultTarget.height, resultBuffer);
+					resultTarget.texture.format = resultTextureFormat; // reset to actual format!
+					// success; todo: additional checks?
+					resultData = {
+						width: resultTarget.width,
+						height: resultTarget.height,
+						bytes: resultBuffer
+					 };
+				}
+				else
+					throw 'not ready, still loading';
+				return resultData;
+			}
+*/			var wasComplete = null;
+			function signalComplete(complete, incompletemsg) {
+				if (!complete || !wasComplete) {
+					if (!complete)
+						infoText(incompletemsg(wasComplete));
+					else
+						infoText('ready');
+					wasComplete = complete;
+				}
+			}
+			function outputFor(texture) {
+				var parameters = {
+					format: THREE.RGBAFormat,
+					type: THREE.FloatType,
+					minFilter: THREE.NearestFilter,
+					magFilter: THREE.NearestFilter,
+					depthBuffer: false,
+					stencilBuffer: false
+				};
+				renderTarget = new THREE.WebGLRenderTarget( texture.image.width, texture.image.height, parameters );
+				renderTarget.texture.image = renderTarget.texture.image || { width: renderTarget.width, height: renderTarget.height };
+				return renderTarget;
+			}
+			function updateOutputFor(texture, renderTarget) {
+				if (renderTarget != null && renderTarget.width == texture.image.width && renderTarget.height == texture.image.height)
+					return renderTarget;
+				else {
+					console.log('Updating render target');
+					var o = outputFor(texture);
+					// memory management!
+					if (renderTarget != null)
+						renderTarget.dispose();
+					return o;
+				}
+			}
+			function resetResult(displaceTexture) {
+				outputTexture = updateOutputFor(displaceTexture, outputTexture);
+				scpp.quad.material = initMaterial;
+				renderer.render(scpp.scene, scpp.camera, outputTexture);
+				return outputTexture.texture;
+			}
+			function continueOptimization(displaceTexture, iterations) {
+				for (var iter = 0; iter < iterations; ++iter) {
+					optUniforms.displaceTex.value = displaceTexture;
+					optUniforms.correctionOffsetTex.value = outputTexture.texture;
+					optUniforms.resolution.value = new THREE.Vector2(displaceTexture.image.width, displaceTexture.image.height);
+					optUniforms.pixelWidth.value = new THREE.Vector2(1 / displaceTexture.image.width, 1 / displaceTexture.image.height);
+					
+					scpp.quad.material = optMaterial;
+					renderer.render(scpp.scene, scpp.camera, outputTexture);
+					optUniforms.iterationIdx.value += 1;
+
+					var ob = outputTexture;
+					outputTexture = outputBuffer;
+					outputBuffer = ob;
+				}
+				return outputTexture.texture;
+			}
+/*			function setupAdjustmentsPass(resultTexture, gamma, flipY) {
+				var resultSize = new THREE.Vector2(resultTexture.image.width, resultTexture.image.height);
+				quad.material = passMaterial;
+				passUniforms.exposure.value = Math.pow(10, gui.exposure-1);
+				passUniforms.gamma.value = gamma;
+				passUniforms.picture.value = resultTexture;
+				passUniforms.size.value = resultSize;
+				passUniforms.offset.value = new THREE.Vector2(0, 0);
+				passUniforms.flipY.value = flipY;
+			}
+			function processResult(resultTexture, flipY) {
+				outputBuffer = updateOutputFor(resultTexture, outputBuffer);
+				setupAdjustmentsPass(resultTexture, 1.0, flipY);
+				renderer.render(scene, camera, outputBuffer, true);
+				return outputBuffer;
+			}
+*/			function render() {
+				renderer.autoClear = true;
+				scpp.quad.material = emptyMaterial;
+				renderer.render(scpp.scene, scpp.camera);
+				renderer.autoClear = false;
+
+				if (resetState) {
+					if (inputImages.color) {
+						sc2d.color.material.map = inputImages.color.texture;
+						sc2d.color.material.needsUpdate = true;
+						sc3d.material.map = inputImages.color.texture;
+						sc3d.material.needsUpdate = true;
+					}
+					if (inputImages.displace) {
+						sc2d.displace.material.map = inputImages.displace.texture;
+						sc2d.displace.material.needsUpdate = true;
+						sc3d.material.displacementMap = inputImages.displace.texture;
+						sc3d.material.bumpMap = inputImages.displace.texture;
+						sc3d.material.needsUpdate = true;
+
+						if (inputImages.displace.texture) {
+							resetResult(inputImages.displace.texture);
+							resetState = false;
+							optUniforms.iterationIdx.value = 0;
+						}
+					}
+				}
+
+				if (inputImages.displace && inputImages.displace.texture) {
+					var corr = continueOptimization(inputImages.displace.texture, 8);
+					sc2d.correction.material.map = corr;
+					sc2d.correction.material.needsUpdate = true;
+				}
+
+				renderer.render(sc2d.scene, sc2d.camera);
+
+				renderer.setViewport(.5 * windowHalfX, 0, 1.5 * windowHalfX, 2 * windowHalfY);
+				renderer.clearDepth();
+				renderer.render(sc3d.scene, sc3d.camera);
+				renderer.setViewport(0, 0, 2 * windowHalfX, 2 * windowHalfY);
+
+/*				var resultTexture = renderResult();
+				if (resultTexture) {
+					setupAdjustmentsPass(resultTexture, gui.gamma, gui.loadFlipped);
+					// center
+					passUniforms.offset.value = new THREE.Vector2(windowHalfX, windowHalfY).addScaledVector(passUniforms.size.value, -.5);
+					// move away from GUI
+					var halfGuiWidth = gui.ui.width / 1.85;
+					passUniforms.offset.value.x -= halfGuiWidth * Math.max(Math.min(2 - passUniforms.offset.value.x / halfGuiWidth, 1), 0);
+					passUniforms.offset.value.round(); // don't resample!
+
+					renderer.render(scene, camera);
+				}
+*/			}
+			animate();
+		</script>
+	</body>
+</html>
