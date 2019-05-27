@@ -678,10 +678,12 @@
 				outputTexture = updateOutputFor(displaceTexture, outputTexture);
 				scpp.quad.material = initMaterial;
 				renderer.setRenderTarget(outputTexture);
-				renderer.render(scpp.scene, scpp.camera, outputTexture);
+				renderer.render(scpp.scene, scpp.camera);
+				renderer.setRenderTarget(null);
 				return outputTexture.texture;
 			}
 			function continueOptimization(displaceTexture, iterations) {
+				if (!outputTexture) return;
 				outputBuffer = updateOutputFor(outputTexture.texture, outputBuffer);
 				for (var iter = 0; iter < iterations; ++iter) {
 					optUniforms.displaceTex.value = displaceTexture;

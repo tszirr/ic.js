@@ -59,10 +59,10 @@ struct Node {
 	vec2 uvo;
 	float pinned;
 };
-Node fetchNode(const ivec2 coord)
+Node fetchNode(const vec2 coord)
 {
 	Node n;
-	vec2 wrapCoord = fract( (vec2(coord) + vec2(.5)) * pixelWidth );
+	vec2 wrapCoord = fract(coord * pixelWidth);
 	float height = textureLod(displaceTex, wrapCoord, 0.0).x;
 	n.pos = vec3(wrapCoord, displacementScale * height);
 	n.uvo = textureLod(correctionOffsetTex, wrapCoord, 0.0).xy;
@@ -73,5 +73,5 @@ Node fetchNode(const ivec2 coord)
 
 bool onGlobalBorder(ivec2 c)
 {
-	return any(equal(c, ivec2(0))) || any(equal(c, resolution - ivec2(1)));
+	return c.x == 0 || c.y == 0 || c.x == resolution.x - 1 || c.y == resolution.y - 1;
 }
