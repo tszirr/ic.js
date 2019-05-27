@@ -1,4 +1,6 @@
-varying vec2 coord;
+#version 300 es
+
+out vec2 coord;
 
 void main() {
     gl_Position	= vec4(position, 1.0);

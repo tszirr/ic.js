@@ -87,8 +87,8 @@ bool evenIteration = fract(float(iterationIdx) * 0.5) > 0.4;
 bool evenHalfIteration = fract(float(iterationIdx) * 0.25) > 0.4;
 if (   (fract(gl_FragCoord.x * 0.5) > 0.5) == evenIteration
     && (fract(gl_FragCoord.x * 0.5) > 0.5) == evenHalfIteration )
-	gl_FragColor.xy = currentNode.uvo - stepSize * gradient;
+	newCorrectionOffset.xy = currentNode.uvo - stepSize * gradient;
 else
-	gl_FragColor.xy = currentNode.uvo;
+	newCorrectionOffset.xy = currentNode.uvo;
 #endif
-gl_FragColor.xy = vec2(.1);
+newCorrectionOffset.xy = vec2(.1);

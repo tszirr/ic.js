@@ -1,4 +1,5 @@
-//#version 300 es
+#version 300 es
+
 uniform sampler2D displaceTex, correctionOffsetTex, pinTex;
 uniform ivec2 resolution; uniform vec2 pixelWidth;
 
@@ -6,7 +7,7 @@ uniform float displacementScale;
 uniform bool fixBoundary;
 uniform int iterationIdx;
 
-// out vec4 newCorrectionOffset; gl_FragColor
+out vec4 newCorrectionOffset;
 
 float areaPreservePow(float x) { return x * x * x; }
 float areaPreservePowDeriv(float x) { return 3.0 * x * x; }
@@ -62,10 +63,10 @@ Node fetchNode(const ivec2 coord)
 {
 	Node n;
 	vec2 wrapCoord = fract( (vec2(coord) + vec2(.5)) * pixelWidth );
-	float height = texture2DLodEXT(displaceTex, wrapCoord, 0.0).x;
+	float height = textureLod(displaceTex, wrapCoord, 0.0).x;
 	n.pos = vec3(wrapCoord, displacementScale * height);
-	n.uvo = texture2DLodEXT(correctionOffsetTex, wrapCoord, 0.0).xy;
-	n.pinned = 0.0; // texture2DLodEXT(pinTex, wrapCoord, 0.0).x;
+	n.uvo = textureLod(correctionOffsetTex, wrapCoord, 0.0).xy;
+	n.pinned = 0.0; // textureLod(pinTex, wrapCoord, 0.0).x;
 	n.uv = n.uvo + wrapCoord;
 	return n;
 }

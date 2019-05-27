@@ -290,7 +290,10 @@
 			}
 			function init() {
 				infoText('loading');
-				renderer = new THREE.WebGLRenderer( { antialias: false, depth: false, stencil: false } );
+				var canvas = document.createElement( 'canvas' );
+				var context = canvas.getContext( 'webgl2' );
+				renderer = new THREE.WebGLRenderer( { canvas: canvas, context: context, antialias: false, depth: false, stencil: false } );
+				renderer.debug.checkShaderErrors = true;
 				// todo: wait for three js SRGB framebuffer support
 				renderer.setPixelRatio( 1 ); // window.devicePixelRatio;
 				//
@@ -337,14 +340,15 @@
 				scpp.quad.frustumCulled = false;
 				scpp.scene.add( scpp.quad );
 				//
+				emptyMaterial = new THREE.ShaderMaterial( loadShader('empty-shader', {}) );
 				{
 					var optShader = loadShader('energy-shader', optUniforms, 'correct-shader');
-					optShader.extensions = { shaderTextureLOD: true };
+//					optShader.extensions = { shaderTextureLOD: true };
+//					optShader.isGLSL3 = true;
 					optMaterial = new THREE.ShaderMaterial( optShader );
 				}
-				emptyMaterial = new THREE.ShaderMaterial( loadShader('empty-shader', {}) );
 				initMaterial = new THREE.ShaderMaterial( loadShader('inituv-shader', {}) );
-				passMaterial = new THREE.ShaderMaterial( loadShader('passpart-shader', passUniforms) );
+//				passMaterial = new THREE.ShaderMaterial( loadShader('passpart-shader', passUniforms) );
 				//
 				infoText('renderer ready');
 			}
@@ -673,6 +677,7 @@
 			function resetResult(displaceTexture) {
 				outputTexture = updateOutputFor(displaceTexture, outputTexture);
 				scpp.quad.material = initMaterial;
+				renderer.setRenderTarget(outputTexture);
 				renderer.render(scpp.scene, scpp.camera, outputTexture);
 				return outputTexture.texture;
 			}
@@ -681,17 +686,19 @@
 				for (var iter = 0; iter < iterations; ++iter) {
 					optUniforms.displaceTex.value = displaceTexture;
 					optUniforms.correctionOffsetTex.value = outputTexture.texture;
-					optUniforms.resolution.value = new THREE.Vector2(displaceTexture.image.width, displaceTexture.image.height);
+					optUniforms.resolution.value = [ displaceTexture.image.width, displaceTexture.image.height ];
 					optUniforms.pixelWidth.value = new THREE.Vector2(1 / displaceTexture.image.width, 1 / displaceTexture.image.height);
 					
 					scpp.quad.material = optMaterial;
-					renderer.render(scpp.scene, scpp.camera, outputBuffer);
+					renderer.setRenderTarget(outputBuffer);
+					renderer.render(scpp.scene, scpp.camera);
 					optUniforms.iterationIdx.value += 1;
 
 					var ob = outputTexture;
 					outputTexture = outputBuffer;
 					outputBuffer = ob;
 				}
+				renderer.setRenderTarget(null);
 				return outputTexture.texture;
 			}
 /*			function setupAdjustmentsPass(resultTexture, gamma, flipY) {

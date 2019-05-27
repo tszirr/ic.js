@@ -1,6 +1,10 @@
-varying vec2 coord;
+#version 300 es
+
+in vec2 coord;
+
+out vec4 uvDelta;
 
 void main() {
-//    gl_FragColor = coord.xyxy;
-    gl_FragColor = vec4(0);
+    uvDelta = vec4(0);
+//    uvDelta = coord.xyxy;
 }
