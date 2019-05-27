@@ -314,6 +314,7 @@
 				sc2d.color = make2DQuad(sc2d.scene, -.75, .75, .24);
 				sc2d.displace = make2DQuad(sc2d.scene, -.75, .25, .24);
 				sc2d.correction = make2DQuad(sc2d.scene, -.75, -.25, .24);
+				sc2d.correction.color = new THREE.Color(50,50,50);
 				//
 				sc3d.scene = new THREE.Scene();
 				sc3d.camera = new THREE.PerspectiveCamera( 45, 1, .02, 20 );
@@ -684,7 +685,7 @@
 					optUniforms.pixelWidth.value = new THREE.Vector2(1 / displaceTexture.image.width, 1 / displaceTexture.image.height);
 					
 					scpp.quad.material = optMaterial;
-					renderer.render(scpp.scene, scpp.camera, outputTexture);
+					renderer.render(scpp.scene, scpp.camera, outputBuffer);
 					optUniforms.iterationIdx.value += 1;
 
 					var ob = outputTexture;
