@@ -53,8 +53,9 @@ for (int i = 0, j = NUM_NEIGHBORS - 1; i < NUM_NEIGHBORS; j = i++) {
 }
 
 float minStepSize = 0.0;
+int maxSearchSteps = 20;
 // Perform ternary search on gradient line to find optimum
-while (maxStepSize - minStepSize > 1.0e-6 * maxStepSize) {
+while (maxStepSize - minStepSize > 1.0e-6 * maxStepSize && --maxSearchSteps != 0) {
 	float third1 = mix(minStepSize, maxStepSize, 1.0 / 3.0);
 	float third2 = mix(minStepSize, maxStepSize, 2.0 / 3.0);
 	vec2 duv1 = third1 * gradient, duv2 = third2 * gradient;
@@ -69,12 +70,13 @@ while (maxStepSize - minStepSize > 1.0e-6 * maxStepSize) {
 }
 float stepSize = mix(minStepSize, maxStepSize, 0.5);
 
-// boundary handling
-if (fixBoundary && onGlobalBorder(currentCoord)) stepSize = 0.0;
-stepSize *= (1.0 - currentNode.pinned);
-
 newCorrectionOffset = currentNode.uvo.xyxy;
 // ensure convergence by only ever moving 1 vertex per neighborhood
 if (   (currentCoord.x & 1) == (iterationIdx & 1)
     && (currentCoord.y & 1) == ((iterationIdx >> 1) & 1) )
 	newCorrectionOffset.xy -= stepSize * gradient;
+
+// boundary handling
+float mobility = 1.0 - currentNode.pinned;
+if (fixBoundary && onGlobalBorder(currentCoord)) mobility = 0.0;
+newCorrectionOffset.xy *= mobility;

@@ -248,11 +248,13 @@
 			var optMaterial, optUniforms = {
 				displaceTex: {},
 				correctionOffsetTex: {},
-				pinTex: { value: null },
+				/*pinTex: { value: null },*/
 				resolution: {},
 				pixelWidth: {},
 				
 				displacementScale: { value: .05 },
+				fixHeight: { value: 0.0 },
+				fixInterval: { value: 0.02 },
 				fixBoundary: { value: false },
 				iterationIdx: { value: 0 }
 			};
@@ -467,28 +469,22 @@
 			function UiParameters() {
 				this.ui = new dat.GUI();
 				
+				this.displacementScale = optUniforms.displacementScale.value;
 				this.unwarp = true;
 				this.uwFolder = this.ui.addFolder('Displacement');
 				this.uwFolder.open();
-				this.displacementScale = optUniforms.displacementScale.value;
 				this.uwFolder.add(this, 'displacementScale', 0, .5).name('Scale').listen();
 				this.uwFolder.add(this, 'unwarp').name('Unwarp').listen();
 
-				this.exposure = 1;
-//				this.gamma = passUniforms.gamma.value;
-				var adjustFolder = this.ui.addFolder('Adjustments');
-				adjustFolder.open();
-				adjustFolder.add(this, 'exposure', -2, 3).listen();
-//				adjustFolder.add(this, 'gamma', 1, 2.5);
-/*
-				this.spp = 1024;
-				this.cascadeBase = defaultCascadeBase;
-				this.cascadeStart = 1;
-				var inputDataFolder = this.ui.addFolder('Input Description');
-				inputDataFolder.add(this, 'spp', 32, 4096).listen();
-				inputDataFolder.add(this, 'cascadeBase', 1, 8).listen();
-				inputDataFolder.add(this, 'cascadeStart', .125, 4).listen();
-*/
+				this.fixHeight = optUniforms.fixHeight.value;
+				this.fixInterval = optUniforms.fixInterval.value;
+				this.fixBoundary = optUniforms.fixBoundary.value;
+				this.paramFolder = this.ui.addFolder('Optimization');
+				this.paramFolder.open();
+				this.paramFolder.add(this, 'fixHeight', 0, 1).name('Fixed Height').listen();
+				this.paramFolder.add(this, 'fixInterval', 0, .5).name('Fixed Interval').listen();
+				this.paramFolder.add(this, 'fixBoundary').name('Fixed Boundary').listen();
+
 				var scope = this;
 
 				function handleFileSelect(evt) {
@@ -512,11 +508,9 @@
 				var inputButton = document.getElementById('input-button');
 				inputButton.addEventListener('change', handleFileSelect, false);
 				this.loadFiles = function() { inputButton.click(); };
-				this.loadFlipped = false;
-				this.ui.add(this, 'loadFiles').name('Load EXR/PFM/PPM');
-				this.ui.add(this, 'loadFlipped').name('Flipped');
+				this.ui.add(this, 'loadFiles').name('Load Textures');
 
-				var outputArea = document.getElementById('output-area');
+/*				var outputArea = document.getElementById('output-area');
 				var saveFolder = this.ui.addFolder('Save');
 				this.outputName = 'Untitled';
 				saveFolder.add(this, 'outputName').name('Name').listen();
@@ -550,7 +544,7 @@
 				}
 				this.reverseRowOrder = false;
 				saveFolder.add(this, 'reverseRowOrder').name('Reverse');
-
+*/
 				this.exampleFolder = this.ui.addFolder('Examples');
 				this.exampleFolder.open();
 				for (var i = 0; i < exampleScenes.length; i+=3) {
@@ -561,11 +555,11 @@
 				this.showSource = function() {
 					printOutput(optMaterial.fragmentShader, formatGLSL);
 				};
-				this.showSplitSource = function() {
-					printOutput(loadScript(document.getElementById('sample-split')), formatCXX);
+				this.showRenderSource = function() {
+					printOutput(document.getElementById('indirect-map-shader-chunk').innerText, formatGLSL);
 				};
-				this.ui.add(this, 'showSource').name('Show Reweighting Source');
-				this.ui.add(this, 'showSplitSource').name('Show Source for Renderer');
+				this.ui.add(this, 'showSource').name('Show Optimization Source');
+				this.ui.add(this, 'showRenderSource').name('Show Source for Renderer');
 
 				infoText('documents processed');
 			}
@@ -587,7 +581,7 @@
 			}
 			var prevTime = null;
 			function animate() {
-//				requestAnimationFrame( animate );
+				requestAnimationFrame( animate );
 				
 				var time = performance.now();
 				if (!prevTime)
@@ -614,7 +608,15 @@
 					updateImageAspect(sc2d.remap.quad);
 				}
 
+				function trackedUpdate(a, b) {
+					var c = (a.value != b);
+					a.value = b;
+					return c;
+				}
 				optUniforms.displacementScale.value = gui.displacementScale;
+				resetState |= trackedUpdate(optUniforms.fixHeight, gui.fixHeight);
+				resetState |= trackedUpdate(optUniforms.fixInterval, gui.fixInterval);
+				resetState |= trackedUpdate(optUniforms.fixBoundary, gui.fixBoundary);
 				sc3d.material.displacementScale = gui.displacementScale;
 				sc3d.material.bumpScale = gui.displacementScale;
 
@@ -622,7 +624,7 @@
 
 				prevTime = time;
 
-				window.setTimeout(animate, 1000 / 5);
+//				window.setTimeout(animate, 1000 / 5);
 			}
 /*			function readBack(flipY) {
 				var resultData = null;
@@ -692,7 +694,7 @@
 			function continueOptimization(displaceTexture, iterations) {
 				if (!outputTexture) return;
 				outputBuffer = updateOutputFor(outputTexture.texture, outputBuffer);
-				for (var iter = 0; iter < iterations; ++iter) {
+				for (var iter = 0; iter < 4 * iterations; ++iter) {
 					optUniforms.displaceTex.value = displaceTexture;
 					optUniforms.correctionOffsetTex.value = outputTexture.texture;
 					optUniforms.resolution.value = [ displaceTexture.image.width, displaceTexture.image.height ];
