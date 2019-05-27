@@ -352,7 +352,11 @@
 				scpp.scene.add( scpp.quad );
 				//
 				rwMaterial = new THREE.ShaderMaterial( loadShader('reweighting-shader', rwUniforms) );
-				optMaterial = new THREE.ShaderMaterial( loadShader('energy-shader', optUniforms, 'correct-shader') );
+				{
+					var optShader = loadShader('energy-shader', optUniforms, 'correct-shader');
+					optShader.extensions = { shaderTextureLOD: true };
+					optMaterial = new THREE.ShaderMaterial( optShader );
+				}
 				emptyMaterial = new THREE.ShaderMaterial( loadShader('empty-shader', {}) );
 				initMaterial = new THREE.ShaderMaterial( loadShader('inituv-shader', {}) );
 				passMaterial = new THREE.ShaderMaterial( loadShader('passpart-shader', passUniforms) );
@@ -682,6 +686,7 @@
 				return outputTexture.texture;
 			}
 			function continueOptimization(displaceTexture, iterations) {
+				outputBuffer = updateOutputFor(outputTexture.texture, outputBuffer);
 				for (var iter = 0; iter < iterations; ++iter) {
 					optUniforms.displaceTex.value = displaceTexture;
 					optUniforms.correctionOffsetTex.value = outputTexture.texture;

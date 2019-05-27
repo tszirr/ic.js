@@ -1,7 +1,7 @@
 #define NUM_NEIGHBORS 6
 
 ivec2 currentCoord = ivec2(gl_FragCoord.xy);
-Node currentNode = fetchNode(cc);
+Node currentNode = fetchNode(currentCoord);
 
 vec3 dnpos[NUM_NEIGHBORS];
 vec2 dnuv[NUM_NEIGHBORS];
@@ -44,22 +44,22 @@ for (int j = NUM_NEIGHBORS - 1, i = 0; i < NUM_NEIGHBORS; j = i++) {
 	float djXg = dnuv[j].x * gradient.y - gradient.x * dnuv[j].y;
 	float dgXi = gradient.x * dnuv[i].y - dnuv[i].x * gradient.y;
 	float den = djXg + dgXi;
-	if (den > 0.0f) {
+	if (den > 0.0) {
 		float aduv0offset = aduv / den;
-		if (maxStepSize > 0.0f)
+		if (maxStepSize > 0.0)
 		     maxStepSize = min(maxStepSize, aduv0offset);
 		else maxStepSize = aduv0offset;
 	}
 }
 
-float minStepSize = 0.0f;
+float minStepSize = 0.0;
 // Perform ternary search on gradient line to find optimum
-while (maxStepSize - minStepSize > 1.0e-6f * maxStepSize) {
-	float third1 = mix(minStepSize, maxStepSize, 1.0f / 3.0f);
-	float third2 = mix(minStepSize, maxStepSize, 2.0f / 3.0f);
+while (maxStepSize - minStepSize > 1.0e-6 * maxStepSize) {
+	float third1 = mix(minStepSize, maxStepSize, 1.0 / 3.0);
+	float third2 = mix(minStepSize, maxStepSize, 2.0 / 3.0);
 	vec2 duv1 = third1 * gradient, duv2 = third2 * gradient;
 	
-	float e1 = 0.0f, e2 = 0.0f;
+	float e1 = 0.0, e2 = 0.0;
 	for (int j = NUM_NEIGHBORS - 1, i = 0; i < NUM_NEIGHBORS; j = i++) {
 		e1+=computeEnergy(dnpos[j],dnpos[i],dnuv[j]-duv1,dnuv[i]-duv1);
 		e2+=computeEnergy(dnpos[j],dnpos[i],dnuv[j]-duv2,dnuv[i]-duv2);
@@ -67,16 +67,25 @@ while (maxStepSize - minStepSize > 1.0e-6f * maxStepSize) {
 	if (e1 < e2) maxStepSize = third2;
 	else minStepSize = third1;
 }
-float stepSize = mix(minStepSize, maxStepSize, 0.5f);
+float stepSize = mix(minStepSize, maxStepSize, 0.5);
 
 // boundary handling
 if (fixBoundary && onGlobalBorder(currentCoord)) stepSize = 0.0;
-stepSize *= (1.0f - currentNode.pinned);
+stepSize *= (1.0 - currentNode.pinned);
 
 // ensure convergence by only ever moving 1 vertex per neighborhood
+#ifdef HAVE_INT_SUPPORT
 if (   (currentCoord.x & 1) == (iterationIdx & 1)
     && (currentCoord.y & 1) == ((iterationIdx >> 1) & 1) )
 	newCorrectionOffset = currentNode.uvo - stepSize * gradient;
 else
 	newCorrectionOffset = currentNode.uvo;
-
+#else
+bool evenIteration = fract(float(iterationIdx) * 0.5) > 0.4;
+bool evenHalfIteration = fract(float(iterationIdx) * 0.25) > 0.4;
+if (   (fract(gl_FragCoord.x * 0.5) > 0.5) == evenIteration
+    && (fract(gl_FragCoord.x * 0.5) > 0.5) == evenHalfIteration )
+	newCorrectionOffset = currentNode.uvo - stepSize * gradient;
+else
+	newCorrectionOffset = currentNode.uvo;
+#endif
