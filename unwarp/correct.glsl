@@ -70,13 +70,13 @@ while (maxStepSize - minStepSize > 1.0e-6 * maxStepSize && --maxSearchSteps != 0
 }
 float stepSize = mix(minStepSize, maxStepSize, 0.5);
 
+// boundary handling
+float mobility = 1.0 - currentNode.pinned;
+if (fixBoundary && onGlobalBorder(currentCoord)) mobility = 0.0;
+stepSize *= mobility;
+
 newCorrectionOffset = currentNode.uvo.xyxy;
 // ensure convergence by only ever moving 1 vertex per neighborhood
 if (   (currentCoord.x & 1) == (iterationIdx & 1)
     && (currentCoord.y & 1) == ((iterationIdx >> 1) & 1) )
 	newCorrectionOffset.xy -= stepSize * gradient;
-
-// boundary handling
-float mobility = 1.0 - currentNode.pinned;
-if (fixBoundary && onGlobalBorder(currentCoord)) mobility = 0.0;
-newCorrectionOffset.xy *= mobility;
