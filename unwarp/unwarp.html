@@ -122,7 +122,7 @@
 		</div>
 
 		<div id="info">
-			<span class="btw-info"><a href="https://github.com/tszirr/ic.js/tree/master/rw" target="_blank" rel="noopener">ic.js</a>
+			<span class="btw-info"><a href="https://github.com/tszirr/ic.js/tree/master/unwarp" target="_blank" rel="noopener">ic.js</a>
 			uses
 			<a href="http://threejs.org" target="_blank" rel="noopener">three.js</a>
 			<a href="https://github.com/mrdoob/three.js/blob/dev/examples/js/loaders/EXRLoader.js" target="_blank" rel="noopener">EXRLoader.js</a>
@@ -139,48 +139,33 @@
 		<script src="three.min.js"></script>
 		<script src="dat.gui.min.js"></script>
 		
-		<script src="pako_inflate.min.js"></script>
+<!--		<script src="pako_inflate.min.js"></script>
 		<script src="EXRLoader.js"></script>
 		<script src="EXRLoader.PIZ.js"></script>
-		<script src="PFMLoader.js"></script>
+		<script src="PFMLoader.js"></script>-->
 		<script>
 			var imageLoaders = {
 				any: { formats: ['png','jpg','jpeg'], loader: new THREE.TextureLoader() },
-				exr: { formats: ['exr'], loader: new THREE.EXRLoader() },
+/*				exr: { formats: ['exr'], loader: new THREE.EXRLoader() },
 				pfm: { formats: ['pfm', 'ppm'], loader: new THREE.PFMLoader() },
-			};
+*/			};
 			var imageWriters = [
-				{ format: 'exr', write: imageLoaders.exr.loader.serializeRGBAtoEXR.bind(imageLoaders.exr.loader), knownRowOrder: true },
-				{ format: 'pfm', write: imageLoaders.pfm.loader.serializeRGBtoPF.bind(imageLoaders.pfm.loader), knownRowOrder: false },
+//				{ format: 'exr', write: imageLoaders.exr.loader.serializeRGBAtoEXR.bind(imageLoaders.exr.loader), knownRowOrder: true },
+//				{ format: 'pfm', write: imageLoaders.pfm.loader.serializeRGBtoPF.bind(imageLoaders.pfm.loader), knownRowOrder: false },
 			];
-			imageWriters.push({format:'bla'});
-			console.log(imageWriters);
-			imageWriters = imageWriters.slice(0);
-			console.log(imageWriters);
 		</script>
 
 		<script>
-			function completeInputs(basename, cascadeBase, cascasdeStart, cascadeSize) {
-				var inputs = [ basename + '.regular.exr' ];
-				for (var i = 0, b = cascasdeStart * cascadeBase; i < cascadeSize; i++, b *= cascadeBase) {
-					inputs.push( basename + '.light_min' + b + '.exr' );
-				}
-				return inputs;
-			}
-			var defaultCascadeBase = 8;
-			var urlInputs = [];
-			var exampleScenes = [ 'bathroom', 'Bathroom [18 MB]', completeInputs('bathroom/prog.dbg.2048', 8, 1, 6),
-				'flashlight', 'Flashlight [12 MB]', completeInputs('flashlight/prog.dbg.8192', 8, 1, 6),
-				'torus', 'Torus [7.5 MB] ', completeInputs('torus/prog.dbg.1024', 8, 1, 6) ];
+			var exampleScenes = [ 'primitives', 'Primitives', ['examples/colorGridTest.png', 'examples/displacePrimitives.png'],
+				'pebbles', 'Pebbles', ['examples/jardinera_1_color.png', 'examples/jardinera_1_displacement_2.png'],
+				'cobs', 'Cobstone ', ['examples/colorTest.png', 'examples/displaceTest.png'],
+				'ccobs', 'Colored Cobstone ', ['examples/piso_patio_exterior.png', 'examples/piso_patio_exterior_displace.png'],
+				'tiles', 'Tiles ', ['examples/piso_rustico.png', 'examples/piso_rustico_displace.png'] ];
 			var urlExample;
 			{
 				var urlParams = new URLSearchParams(document.location.search);
 				console.log(document.location.href)
 				var param;
-				if (param = urlParams.get('cascadeBase'))
-					defaultCascadeBase = param;
-				if (param = urlParams.get('inputs-basename'))
-					urlInputs = completeInputs(param, defaultCascadeBase, 1, 6);
 				urlExample = urlParams.get('example');
 			}
 			// input sorting
@@ -203,7 +188,6 @@
 		</script>
 
 		<script src="fullscreen.vs" type="x-shader/x-vertex" id="vertex-shader"></script>
-		<script src="reweight.fs" type="x-shader/x-fragment" id="reweighting-shader"></script>
 		<script src="passpart.fs" type="x-shader/x-fragment" id="passpart-shader"></script>
 		<script src="empty.fs" type="x-shader/x-fragment" id="empty-shader"></script>
 		<script src="inituv.fs" type="x-shader/x-fragment" id="inituv-shader"></script>
@@ -240,7 +224,7 @@
 			var renderer, scpp = {}, sc2d = {}, sc3d = {};
 			var inputImages = { color: null, displace: null };
 			var outputTexture, outputBuffer;
-			var rwMaterial, rwUniforms = {
+			var rwUniforms = {
 				cropOffset: { },
 				size: { },
 				picture: { },
@@ -260,7 +244,7 @@
 				resolution: {},
 				pixelWidth: {},
 				
-				displacementScale: { value: .15 },
+				displacementScale: { value: .05 },
 				fixBoundary: { value: false },
 				iterationIdx: { value: 0 }
 			};
@@ -333,9 +317,10 @@
 				//
 				sc3d.scene = new THREE.Scene();
 				sc3d.camera = new THREE.PerspectiveCamera( 45, 1, .02, 20 );
-				sc3d.camera.position.set(1, 1, 1);
-				sc3d.camera.lookAt(0,.15,0);
-				sc3d.sun = new THREE.DirectionalLight( 0xffffff, 0.5 );
+				sc3d.camera.position.set(.7, .5, .5);
+				sc3d.camera.lookAt(-.5,-.15,-.5);
+				sc3d.sun = new THREE.DirectionalLight( 0xffffff, 2 );
+				sc3d.sun.position.set(1,3,1);
 				sc3d.scene.add( sc3d.sun );
 				sc3d.material = new THREE.MeshStandardMaterial();
 				sc3d.material.displacementScale = sc3d.material.bumpScale = optUniforms.displacementScale.value;
@@ -351,7 +336,6 @@
 				scpp.quad.frustumCulled = false;
 				scpp.scene.add( scpp.quad );
 				//
-				rwMaterial = new THREE.ShaderMaterial( loadShader('reweighting-shader', rwUniforms) );
 				{
 					var optShader = loadShader('energy-shader', optUniforms, 'correct-shader');
 					optShader.extensions = { shaderTextureLOD: true };
@@ -417,6 +401,7 @@
 				newInputs = sortInputs(newFiles, function(a) { return a.file.name; });
 				disposeImages = Object.values(inputImages);
 				inputImages = newInputs;
+				resetState = true;
 				console.log(inputImages);
 				// ui
 				{
@@ -473,9 +458,10 @@
 				this.ui = new dat.GUI();
 				
 				this.kappa = 32;
-				this.rwFolder = this.ui.addFolder('Reweighting');
-				this.rwFolder.open();
-				this.rwFolder.add(this, 'kappa', 1.e-9, 128).name('K ("min spp")').listen();
+				this.uwFolder = this.ui.addFolder('Displacement');
+				this.uwFolder.open();
+				this.displacementScale = optUniforms.displacementScale.value;
+				this.uwFolder.add(this, 'displacementScale', 0, .5).name('Scale').listen();
 
 				this.exposure = 1;
 				this.gamma = passUniforms.gamma.value;
@@ -483,7 +469,7 @@
 				adjustFolder.open();
 				adjustFolder.add(this, 'exposure', -2, 3).listen();
 				adjustFolder.add(this, 'gamma', 1, 2.5);
-
+/*
 				this.spp = 1024;
 				this.cascadeBase = defaultCascadeBase;
 				this.cascadeStart = 1;
@@ -491,7 +477,7 @@
 				inputDataFolder.add(this, 'spp', 32, 4096).listen();
 				inputDataFolder.add(this, 'cascadeBase', 1, 8).listen();
 				inputDataFolder.add(this, 'cascadeStart', .125, 4).listen();
-
+*/
 				var scope = this;
 
 				function handleFileSelect(evt) {
@@ -562,7 +548,7 @@
 					this.exampleFolder.add(this, exampleName).name(exampleScenes[i+1]);
 				}
 				this.showSource = function() {
-					printOutput(rwMaterial.fragmentShader, formatGLSL);
+					printOutput(optMaterial.fragmentShader, formatGLSL);
 				};
 				this.showSplitSource = function() {
 					printOutput(loadScript(document.getElementById('sample-split')), formatCXX);
@@ -615,6 +601,10 @@
 					updateImageAspect(sc2d.displace.quad);
 					updateImageAspect(sc2d.correction.quad);
 				}
+
+				optUniforms.displacementScale.value = gui.displacementScale;
+				sc3d.material.displacementScale = gui.displacementScale;
+				sc3d.material.bumpScale = gui.displacementScale;
 
 				render();
 
