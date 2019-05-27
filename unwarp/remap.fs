@@ -7,5 +7,5 @@ in vec2 coord;
 out vec4 color;
 
 void main() {
-    color = texture(colorTex, texture(remapTex, coord).xy);
+    color = texture(colorTex, coord + texture(remapTex, coord).xy);
 }

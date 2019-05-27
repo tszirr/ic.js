@@ -194,6 +194,14 @@
 		<script src="energy.glsl" type="x-shader/x-fragment" id="energy-shader"></script>
 		<script src="correct.glsl" type="x-shader/x-fragment" id="correct-shader"></script>
 
+		<script type="x-shader/x-fragment" id="indirect-map-shader-chunk">
+			#ifdef USE_MAP
+				vec4 texelColor = texture2D( map, vUv + texture2D( remap, vUv).xy );
+				texelColor = mapTexelToLinear( texelColor );
+				diffuseColor *= texelColor;
+			#endif
+		</script>
+
 		<script src="split.cpp" type="text/plain" id="sample-split"></script>
 
 		<script>
@@ -325,7 +333,7 @@
 				sc3d.scene.add( sc3d.sun );
 				sc3d.material = new THREE.MeshStandardMaterial();
 				sc3d.material.displacementScale = sc3d.material.bumpScale = optUniforms.displacementScale.value;
-				sc3d.quad = new THREE.Mesh( new THREE.PlaneBufferGeometry( 1, 1, 32, 32 ), sc3d.material );
+				sc3d.quad = new THREE.Mesh( new THREE.PlaneBufferGeometry( 1, 1, 128, 128 ), sc3d.material );
 				sc3d.quad.rotateX(-1.55);
 				sc3d.quad.frustumCulled = false;
 				sc3d.scene.add( sc3d.quad );
@@ -459,11 +467,12 @@
 			function UiParameters() {
 				this.ui = new dat.GUI();
 				
-				this.kappa = 32;
+				this.unwarp = true;
 				this.uwFolder = this.ui.addFolder('Displacement');
 				this.uwFolder.open();
 				this.displacementScale = optUniforms.displacementScale.value;
 				this.uwFolder.add(this, 'displacementScale', 0, .5).name('Scale').listen();
+				this.uwFolder.add(this, 'unwarp').name('Unwarp').listen();
 
 				this.exposure = 1;
 //				this.gamma = passUniforms.gamma.value;
@@ -725,17 +734,17 @@
 
 				if (resetState) {
 					if (inputImages.color) {
+						sc2d.color.material.needsUpdate = !sc2d.color.material.map;
 						sc2d.color.material.map = inputImages.color.texture;
-						sc2d.color.material.needsUpdate = true;
+						sc3d.material.needsUpdate = !sc3d.material.map;
 						sc3d.material.map = inputImages.color.texture;
-						sc3d.material.needsUpdate = true;
 					}
 					if (inputImages.displace) {
+						sc2d.displace.material.needsUpdate = !sc2d.displace.material.map;
 						sc2d.displace.material.map = inputImages.displace.texture;
-						sc2d.displace.material.needsUpdate = true;
+						sc3d.material.needsUpdate = !sc3d.material.displacementMap;
 						sc3d.material.displacementMap = inputImages.displace.texture;
 						sc3d.material.bumpMap = inputImages.displace.texture;
-						sc3d.material.needsUpdate = true;
 
 						if (inputImages.displace.texture) {
 							resetResult(inputImages.displace.texture);
@@ -747,12 +756,33 @@
 
 				if (inputImages.displace && inputImages.displace.texture) {
 					var corr = continueOptimization(inputImages.displace.texture, 8);
+					sc2d.correction.material.needsUpdate = !sc2d.correction.material.map;
 					sc2d.correction.material.map = corr;
-					sc2d.correction.material.needsUpdate = true;
 
 					remapUniforms.colorTex.value = inputImages.color.texture;
 					remapUniforms.remapTex.value = corr;
-//					sc2d.remap.quad.material = remapMaterial; // todo: sths wrong?!?!
+					sc2d.remap.quad.material = remapMaterial;
+
+					if (gui.unwarp) {
+						// custom remapping material
+						if (!sc3d.material.remap) {
+							sc3d.material.remap = { value: corr };
+							sc3d.material.onBeforeCompile = function(shader, renderer) {
+								shader.uniforms.remap = sc3d.material.remap;
+								shader.fragmentShader = shader.fragmentShader.replace('#include <map_pars_fragment>',
+									'#include <map_pars_fragment>\nuniform sampler2D remap;\n');
+								shader.fragmentShader = shader.fragmentShader.replace('#include <map_fragment>',
+									document.getElementById('indirect-map-shader-chunk').innerText);
+							}
+							sc3d.material.needsUpdate = true;
+						}
+						sc3d.material.remap.value = corr;
+					} else if (sc3d.material.remap) {
+						// reset to standard material
+						sc3d.material.remap = null;
+						sc3d.material.onBeforeCompile = function() { };
+						sc3d.material.needsUpdate = true;
+					}
 				}
 
 				renderer.render(sc2d.scene, sc2d.camera);
