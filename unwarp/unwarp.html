@@ -188,7 +188,7 @@
 		</script>
 
 		<script src="fullscreen.vs" type="x-shader/x-vertex" id="vertex-shader"></script>
-		<script src="passpart.fs" type="x-shader/x-fragment" id="passpart-shader"></script>
+		<script src="remap.fs" type="x-shader/x-fragment" id="remap-shader"></script>
 		<script src="empty.fs" type="x-shader/x-fragment" id="empty-shader"></script>
 		<script src="inituv.fs" type="x-shader/x-fragment" id="inituv-shader"></script>
 		<script src="energy.glsl" type="x-shader/x-fragment" id="energy-shader"></script>
@@ -248,13 +248,9 @@
 				fixBoundary: { value: false },
 				iterationIdx: { value: 0 }
 			};
-			var emptyMaterial, initMaterial, passMaterial, passUniforms = {
-				offset: { },
-				size: { },
-				exposure: { },
-				flipY: { value: false },
-				gamma: { value: 2.2 },
-				picture: { },
+			var emptyMaterial, initMaterial, remapMaterial, remapUniforms = {
+				colorTex: { },
+				remapTex: { }
 			};
 			var resetState = true;
 			var windowHalfX, windowHalfY;
@@ -317,7 +313,8 @@
 				sc2d.color = make2DQuad(sc2d.scene, -.75, .75, .24);
 				sc2d.displace = make2DQuad(sc2d.scene, -.75, .25, .24);
 				sc2d.correction = make2DQuad(sc2d.scene, -.75, -.25, .24);
-				sc2d.correction.color = new THREE.Color(50,50,50);
+				sc2d.correction.material.color = new THREE.Color(200,200,0);
+				sc2d.remap = make2DQuad(sc2d.scene, -.75, -.75, .24);
 				//
 				sc3d.scene = new THREE.Scene();
 				sc3d.camera = new THREE.PerspectiveCamera( 45, 1, .02, 20 );
@@ -348,7 +345,7 @@
 					optMaterial = new THREE.ShaderMaterial( optShader );
 				}
 				initMaterial = new THREE.ShaderMaterial( loadShader('inituv-shader', {}) );
-//				passMaterial = new THREE.ShaderMaterial( loadShader('passpart-shader', passUniforms) );
+				remapMaterial = new THREE.ShaderMaterial( loadShader('remap-shader', remapUniforms) );
 				//
 				infoText('renderer ready');
 			}
@@ -469,11 +466,11 @@
 				this.uwFolder.add(this, 'displacementScale', 0, .5).name('Scale').listen();
 
 				this.exposure = 1;
-				this.gamma = passUniforms.gamma.value;
+//				this.gamma = passUniforms.gamma.value;
 				var adjustFolder = this.ui.addFolder('Adjustments');
 				adjustFolder.open();
 				adjustFolder.add(this, 'exposure', -2, 3).listen();
-				adjustFolder.add(this, 'gamma', 1, 2.5);
+//				adjustFolder.add(this, 'gamma', 1, 2.5);
 /*
 				this.spp = 1024;
 				this.cascadeBase = defaultCascadeBase;
@@ -605,6 +602,7 @@
 					updateImageAspect(sc2d.color.quad);
 					updateImageAspect(sc2d.displace.quad);
 					updateImageAspect(sc2d.correction.quad);
+					updateImageAspect(sc2d.remap.quad);
 				}
 
 				optUniforms.displacementScale.value = gui.displacementScale;
@@ -751,6 +749,10 @@
 					var corr = continueOptimization(inputImages.displace.texture, 8);
 					sc2d.correction.material.map = corr;
 					sc2d.correction.material.needsUpdate = true;
+
+					remapUniforms.colorTex.value = inputImages.color.texture;
+					remapUniforms.remapTex.value = corr;
+//					sc2d.remap.quad.material = remapMaterial; // todo: sths wrong?!?!
 				}
 
 				renderer.render(sc2d.scene, sc2d.camera);

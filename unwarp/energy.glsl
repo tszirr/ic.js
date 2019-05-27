@@ -59,15 +59,16 @@ struct Node {
 	vec2 uvo;
 	float pinned;
 };
-Node fetchNode(const vec2 coord)
+Node fetchNode(vec2 coord)
 {
 	Node n;
-	vec2 wrapCoord = fract(coord * pixelWidth);
+	coord *= pixelWidth;
+	vec2 wrapCoord = fract(coord);
 	float height = textureLod(displaceTex, wrapCoord, 0.0).x;
-	n.pos = vec3(wrapCoord, displacementScale * height);
+	n.pos = vec3(coord, displacementScale * height);
 	n.uvo = textureLod(correctionOffsetTex, wrapCoord, 0.0).xy;
 	n.pinned = 0.0; // textureLod(pinTex, wrapCoord, 0.0).x;
-	n.uv = n.uvo + wrapCoord;
+	n.uv = n.uvo + coord;
 	return n;
 }
 
