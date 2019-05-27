@@ -29,17 +29,18 @@ vec2 dnuv[NUM_NEIGHBORS];
 float energy = 0.0; // in case you want to see it
 vec2 gradient = vec2(0.0);
 // compute energy gradient for each neighbor triangle
-for (int j = NUM_NEIGHBORS - 1, i = 0; i < NUM_NEIGHBORS; j = i++) {
+{ int j = NUM_NEIGHBORS - 1; for (int i = 0; i < NUM_NEIGHBORS; ++i) {
 	float neighborEnergy;
 	gradient += pixelWidth * computeGradient(
 		dnpos[j], dnpos[i], dnuv[j], dnuv[i], neighborEnergy);
 	energy += neighborEnergy;
-}
+	j = i;
+} }
 energy *= 0.5 / float(NUM_NEIGHBORS);
 
 float maxStepSize = 0.0;
 // compute maximum step size (before triangle flips)
-for (int j = NUM_NEIGHBORS - 1, i = 0; i < NUM_NEIGHBORS; j = i++) {
+{ int j = NUM_NEIGHBORS - 1; for (int i = 0; i < NUM_NEIGHBORS; ++i) {
 	float aduv = dnuv[j].x * dnuv[i].y - dnuv[i].x * dnuv[j].y;
 	float djXg = dnuv[j].x * gradient.y - gradient.x * dnuv[j].y;
 	float dgXi = gradient.x * dnuv[i].y - dnuv[i].x * gradient.y;
@@ -50,7 +51,8 @@ for (int j = NUM_NEIGHBORS - 1, i = 0; i < NUM_NEIGHBORS; j = i++) {
 		     maxStepSize = min(maxStepSize, aduv0offset);
 		else maxStepSize = aduv0offset;
 	}
-}
+	j = i;
+} }
 
 float minStepSize = 0.0;
 // Perform ternary search on gradient line to find optimum
@@ -85,7 +87,8 @@ bool evenIteration = fract(float(iterationIdx) * 0.5) > 0.4;
 bool evenHalfIteration = fract(float(iterationIdx) * 0.25) > 0.4;
 if (   (fract(gl_FragCoord.x * 0.5) > 0.5) == evenIteration
     && (fract(gl_FragCoord.x * 0.5) > 0.5) == evenHalfIteration )
-	newCorrectionOffset = currentNode.uvo - stepSize * gradient;
+	gl_FragColor.xy = currentNode.uvo - stepSize * gradient;
 else
-	newCorrectionOffset = currentNode.uvo;
+	gl_FragColor.xy = currentNode.uvo;
 #endif
+gl_FragColor.xy = vec2(.1);

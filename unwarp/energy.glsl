@@ -6,7 +6,7 @@ uniform float displacementScale;
 uniform bool fixBoundary;
 uniform int iterationIdx;
 
-out vec4 newCorrectionOffset;
+// out vec4 newCorrectionOffset; gl_FragColor
 
 float areaPreservePow(float x) { return x * x * x; }
 float areaPreservePowDeriv(float x) { return 3.0 * x * x; }
@@ -65,7 +65,7 @@ Node fetchNode(const ivec2 coord)
 	float height = texture2DLodEXT(displaceTex, wrapCoord, 0.0).x;
 	n.pos = vec3(wrapCoord, displacementScale * height);
 	n.uvo = texture2DLodEXT(correctionOffsetTex, wrapCoord, 0.0).xy;
-	n.pinned = texture2DLodEXT(pinTex, wrapCoord, 0.0).x;
+	n.pinned = 0.0; // texture2DLodEXT(pinTex, wrapCoord, 0.0).x;
 	n.uv = n.uvo + wrapCoord;
 	return n;
 }
