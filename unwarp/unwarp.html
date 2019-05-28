@@ -190,6 +190,7 @@
 		<script src="fullscreen.vs" type="x-shader/x-vertex" id="vertex-shader"></script>
 		<script src="empty.fs" type="x-shader/x-fragment" id="empty-shader"></script>
 		<script src="remap.fs" type="x-shader/x-fragment" id="remap-shader"></script>
+		<script src="normal.fs" type="x-shader/x-fragment" id="normal-shader"></script>
 		<script src="displacevis.fs" type="x-shader/x-fragment" id="displacement-vis-shader"></script>
 		<script src="inituv.fs" type="x-shader/x-fragment" id="inituv-shader"></script>
 		<script src="energy.glsl" type="x-shader/x-fragment" id="energy-shader"></script>
@@ -233,20 +234,7 @@
 			var renderer, scpp = {}, sc2d = {}, sc3d = {};
 			var gridResolution = 256;
 			var inputImages = { color: null, displace: null };
-			var outputTexture, outputBuffer;
-			var rwUniforms = {
-				cropOffset: { },
-				size: { },
-				picture: { },
-				hasPicture: { },
-				hasMore: { },
-				prev: { },
-				curr: { },
-				next: { },
-				oneOverK: { },
-				currScale: { },
-				cascadeBase: { },
-			};
+			var outputTexture, outputBuffer, normalTexture;
 			var optMaterial, optUniforms = {
 				displaceTex: {},
 				correctionOffsetTex: {},
@@ -269,6 +257,10 @@
 			var emptyMaterial, initMaterial, remapMaterial, remapUniforms = {
 				colorTex: { },
 				remapTex: { }
+			};
+			var normalMaterial, normalUniforms = {
+				bumpMap: {},
+				bumpScale: { value: 1 },
 			};
 			var resetState = true;
 			var windowHalfX, windowHalfY;
@@ -342,6 +334,7 @@
 				sc3d.sun.position.set(1,3,1);
 				sc3d.scene.add( sc3d.sun );
 				sc3d.material = new THREE.MeshStandardMaterial();
+				sc3d.material.normalMapType = THREE.ObjectSpaceNormalMap;
 				sc3d.material.displacementScale = sc3d.material.bumpScale = optUniforms.displacementScale.value;
 				sc3d.quad = new THREE.Mesh( new THREE.PlaneBufferGeometry( 1, 1, gridResolution, gridResolution ), sc3d.material );
 				sc3d.quad.rotateX(-1.55);
@@ -360,6 +353,7 @@
 				initMaterial = new THREE.ShaderMaterial( loadShader('inituv-shader', {}) );
 				visMaterial = new THREE.ShaderMaterial( loadShader('displacement-vis-shader', visUniforms) );
 				remapMaterial = new THREE.ShaderMaterial( loadShader('remap-shader', remapUniforms) );
+				normalMaterial = new THREE.ShaderMaterial( loadShader('normal-shader', normalUniforms) );
 				//
 				infoText('renderer ready');
 			}
@@ -476,11 +470,15 @@
 				this.displacementScale = optUniforms.displacementScale.value;
 				this.unwarp = true;
 				this.mipmapped = true;
+				this.bumpmap = false;
+				this.flat = false;
 				this.uwFolder = this.ui.addFolder('Displacement');
 				this.uwFolder.open();
 				this.uwFolder.add(this, 'displacementScale', 0, .5).name('Scale').listen();
 				this.uwFolder.add(this, 'unwarp').name('Unwarp').listen();
 				this.uwFolder.add(this, 'mipmapped').listen();
+				this.uwFolder.add(this, 'bumpmap').listen();
+				this.uwFolder.add(this, 'flat').listen();
 
 				this.gridMatched = false;
 				this.fixHeight = optUniforms.fixHeight.value;
@@ -670,8 +668,10 @@
 				var parameters = {
 					format: THREE.RGBAFormat, // LuminanceAlphaFormat?
 					type: THREE.FloatType,
-					minFilter: THREE.LinearMipMapLinearFilter,
-					generateMipmaps: true,
+					minFilter: THREE.LinearFilter,
+					wrapS: THREE.RepeatWrapping,
+					wrapT: THREE.RepeatWrapping,
+					
 					depthBuffer: false,
 					stencilBuffer: false
 				};
@@ -692,6 +692,16 @@
 						renderTarget.dispose();
 					return o;
 				}
+			}
+			function renderNormals(displaceTexture) {
+				normalTexture = updateOutputFor(displaceTexture, normalTexture);
+				normalUniforms.bumpMap.value = displaceTexture;
+				normalUniforms.bumpScale.value = gui.displacementScale;
+				scpp.quad.material = normalMaterial;
+				renderer.setRenderTarget(normalTexture);
+				renderer.render(scpp.scene, scpp.camera);
+				renderer.setRenderTarget(null);
+				return normalTexture.texture;
 			}
 			function resetResult(displaceTexture) {
 				outputTexture = updateOutputFor(displaceTexture, outputTexture, gui.gridMatched ? gridResolution : 0, gui.gridMatched ? gridResolution : 0);
@@ -745,25 +755,46 @@
 				renderer.render(scpp.scene, scpp.camera);
 				renderer.autoClear = false;
 
+				if (inputImages.color) {
+					sc2d.color.material.needsUpdate = !sc2d.color.material.map;
+					sc2d.color.material.map = inputImages.color.texture;
+					sc3d.material.needsUpdate = !sc3d.material.map;
+					sc3d.material.map = inputImages.color.texture;
+				}
 				if (resetState) {
-					if (inputImages.color) {
-						sc2d.color.material.needsUpdate = !sc2d.color.material.map;
-						sc2d.color.material.map = inputImages.color.texture;
-						sc3d.material.needsUpdate = !sc3d.material.map;
-						sc3d.material.map = inputImages.color.texture;
-					}
 					if (inputImages.displace) {
 						sc2d.displace.material.needsUpdate = !sc2d.displace.material.map;
 						sc2d.displace.material.map = inputImages.displace.texture;
 						sc3d.material.needsUpdate = !sc3d.material.displacementMap;
 						sc3d.material.displacementMap = inputImages.displace.texture;
-						sc3d.material.bumpMap = inputImages.displace.texture;
+						sc3d.material.bumpMap = null;
+						sc3d.material.normalMap = null;
 
 						if (inputImages.displace.texture) {
 							resetResult(inputImages.displace.texture);
 							resetState = false;
 							optUniforms.iterationIdx.value = 0;
 						}
+					}
+				}
+				
+				if (inputImages.displace) {
+					var needsBump = !gui.flat && gui.bumpmap;
+					sc3d.material.needsUpdate |= !sc3d.material.bumpMap == needsBump;
+					sc3d.material.bumpMap = (needsBump ? inputImages.displace.texture : null);
+
+					var needsNormals = !gui.flat && !gui.bumpmap;
+					var refreshNormals = false;
+					if (needsNormals && sc3d.material.normalScale.x != gui.displacementScale) {
+						sc3d.material.normalScale.set( gui.displacementScale, gui.displacementScale );
+						refreshNormals = true;
+					}
+					if (!sc3d.material.normalMap == needsNormals || refreshNormals) {
+						sc3d.material.normalMap = null;
+						if (needsNormals && inputImages.displace.texture) {
+							sc3d.material.normalMap = renderNormals(inputImages.displace.texture);
+						}
+						sc3d.material.needsUpdate = true;
 					}
 				}
 
