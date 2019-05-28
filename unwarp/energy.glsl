@@ -56,6 +56,13 @@ float computeEnergy(vec3 dnpos1, vec3 dnpos2
 	return energy;
 }
 
+float mixExp(float a, float b, float s) {
+	return pow(a, 1.0 - s) * pow(b, s);
+}
+vec2 mixExp(vec2 a, vec2 b, float s) {
+	return pow(a, vec2(1.0 - s)) * pow(b, vec2(s));
+}
+
 struct Node {
 	vec3 pos;
 	vec2 uv;
@@ -79,3 +86,23 @@ bool onGlobalBorder(ivec2 c)
 {
 	return c.x == 0 || c.y == 0 || c.x == resolution.x - 1 || c.y == resolution.y - 1;
 }
+
+#if 1
+
+vec2 computePinningGradient(vec2 duv, float pinned, out float energy) {
+	vec2 mobilityCoeff = 0.1 * pinned * vec2(resolution);
+	float mobilityEnergyCoeff = 1.0 / max(1.0 - lengthSquared(duv * mobilityCoeff), 0.0);
+	energy = 0.5 * mobilityEnergyCoeff;
+	return mobilityEnergyCoeff * mobilityEnergyCoeff * (duv * mobilityCoeff * mobilityCoeff);
+}
+
+#else
+
+vec2 computePinningGradient(vec2 duv, float pinned, out float energy) {
+  float maxMobility = pinned > 0.0 ? min(0.01 / pinned, 1.0) : 1.0;
+	float mobilityEnergyCoeff = maxMobility / max(maxMobility * maxMobility - lengthSquared(duv), 0.0);
+	energy = 0.5 * maxMobility * mobilityEnergyCoeff;
+	return mobilityEnergyCoeff * mobilityEnergyCoeff * duv;
+}
+
+#endif

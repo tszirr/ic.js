@@ -10,9 +10,6 @@ vec2 dnuv[NUM_NEIGHBORS];
 		for (co.x = -1; co.x <= 1; ++co.x) {
 			if (co.x != co.y) {
 				Node nn = fetchNode(gl_FragCoord.xy + vec2(co));
-				// handle pinned nodes
-				nn.pos.z = mix(nn.pos.z, currentNode.pos.z, nn.pinned);
-				nn.uv = mix(nn.uv, nn.pos.xy, nn.pinned);
 				// compute the neighbor index
 				int nbidx = i; // i = 0,1
 				if (co.y == 0) nbidx = (co.x == -1) ? 5 : 2;
@@ -31,28 +28,38 @@ vec2 gradient = vec2(0.0);
 // compute energy gradient for each neighbor triangle
 for (int i = 0, j = NUM_NEIGHBORS - 1; i < NUM_NEIGHBORS; j = i++) {
 	float neighborEnergy;
-	gradient += pixelWidth * computeGradient(
+	gradient += computeGradient(
 		dnpos[j], dnpos[i], dnuv[j], dnuv[i], neighborEnergy);
 	energy += neighborEnergy;
 }
 energy *= 0.5 / float(NUM_NEIGHBORS);
 
-float maxStepSize = 0.0;
-// compute maximum step size (before triangle flips)
-for (int i = 0, j = NUM_NEIGHBORS - 1; i < NUM_NEIGHBORS; j = i++) {
-	float aduv = dnuv[j].x * dnuv[i].y - dnuv[i].x * dnuv[j].y;
-	float djXg = dnuv[j].x * gradient.y - gradient.x * dnuv[j].y;
-	float dgXi = gradient.x * dnuv[i].y - dnuv[i].x * gradient.y;
-	float den = djXg + dgXi;
-	if (den > 0.0) {
-		float aduv0offset = aduv / den;
-		if (maxStepSize > 0.0)
-		     maxStepSize = min(maxStepSize, aduv0offset);
-		else maxStepSize = aduv0offset;
-	}
+// handle pinned nodes
+{
+	float pinEnergy;
+	gradient += computePinningGradient(currentNode.uv - currentNode.pos.xy, currentNode.pinned, pinEnergy);
+	energy += pinEnergy;
 }
 
 float minStepSize = 0.0;
+float maxStepSize = 2.0e32;
+// compute maximum step size (before triangle flips)
+for (int i = 0, j = NUM_NEIGHBORS - 1; i < NUM_NEIGHBORS; j = i++) {
+	float aduv = dnuv[j].x  * dnuv[i].y  - dnuv[i].x  * dnuv[j].y;
+	float djXg = dnuv[j].x  * gradient.y - gradient.x * dnuv[j].y;
+	float dgXi = gradient.x * dnuv[i].y  - dnuv[i].x  * gradient.y;
+	float den = djXg + dgXi;
+	float aduv0offset = aduv / den;
+	if (aduv0offset > 0.0) {
+		if (aduv > 0.0)
+			maxStepSize = min(maxStepSize, aduv0offset);
+		else
+			minStepSize = max(minStepSize, aduv0offset);
+	}
+}
+if (!(minStepSize <= maxStepSize))
+	minStepSize = maxStepSize = 0.0;
+
 int maxSearchSteps = 20;
 // Perform ternary search on gradient line to find optimum
 while (maxStepSize - minStepSize > 1.0e-6 * maxStepSize && --maxSearchSteps != 0) {
@@ -62,16 +69,22 @@ while (maxStepSize - minStepSize > 1.0e-6 * maxStepSize && --maxSearchSteps != 0
 	
 	float e1 = 0.0, e2 = 0.0;
 	for (int j = NUM_NEIGHBORS - 1, i = 0; i < NUM_NEIGHBORS; j = i++) {
-		e1+=computeEnergy(dnpos[j],dnpos[i],dnuv[j]-duv1,dnuv[i]-duv1);
-		e2+=computeEnergy(dnpos[j],dnpos[i],dnuv[j]-duv2,dnuv[i]-duv2);
+		e1 += computeEnergy(dnpos[j],dnpos[i],dnuv[j]-duv1,dnuv[i]-duv1);
+		e2 += computeEnergy(dnpos[j],dnpos[i],dnuv[j]-duv2,dnuv[i]-duv2);
 	}
+	e1 *= 0.5 / float(NUM_NEIGHBORS);
+	e2 *= 0.5 / float(NUM_NEIGHBORS);
+	float pe1, pe2;
+	computePinningGradient(currentNode.uv - duv1 - currentNode.pos.xy, currentNode.pinned, pe1);
+	computePinningGradient(currentNode.uv - duv2 - currentNode.pos.xy, currentNode.pinned, pe2);
+	e1 += pe1; e2 += pe2;
 	if (e1 < e2) maxStepSize = third2;
 	else minStepSize = third1;
 }
 float stepSize = mix(minStepSize, maxStepSize, 0.5);
 
 // boundary handling
-float mobility = 1.0 - currentNode.pinned;
+float mobility = 1.0; // - currentNode.pinned;
 if (fixBoundary && onGlobalBorder(currentCoord)) mobility = 0.0;
 stepSize *= mobility;
 
