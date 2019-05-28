@@ -57,10 +57,11 @@ for (int i = 0, j = NUM_NEIGHBORS - 1; i < NUM_NEIGHBORS; j = i++) {
 			minStepSize = max(minStepSize, aduv0offset);
 	}
 }
+// assert: minStepSize <= maxStepSize
 if (!(minStepSize <= maxStepSize))
 	minStepSize = maxStepSize = 0.0;
 
-int maxSearchSteps = 20;
+int maxSearchSteps = 32;
 // Perform ternary search on gradient line to find optimum
 while (maxStepSize - minStepSize > 1.0e-6 * maxStepSize && --maxSearchSteps != 0) {
 	float third1 = mix(minStepSize, maxStepSize, 1.0 / 3.0);
@@ -78,15 +79,13 @@ while (maxStepSize - minStepSize > 1.0e-6 * maxStepSize && --maxSearchSteps != 0
 	computePinningGradient(currentNode.uv - duv1 - currentNode.pos.xy, currentNode.pinned, pe1);
 	computePinningGradient(currentNode.uv - duv2 - currentNode.pos.xy, currentNode.pinned, pe2);
 	e1 += pe1; e2 += pe2;
-	if (e1 <= e2) maxStepSize = third2;
-	else minStepSize = third1;
+	if (e1 > e2) minStepSize = third1;
+	else maxStepSize = third2;
 }
 float stepSize = mix(minStepSize, maxStepSize, 0.5);
 
 // boundary handling
-float mobility = 1.0; // - currentNode.pinned;
-if (fixBoundary && onGlobalBorder(currentCoord)) mobility = 0.0;
-stepSize *= mobility;
+if (fixBoundary && onGlobalBorder(currentCoord)) stepSize = 0.0;
 
 newCorrectionOffset = currentNode.uvo.xyxy;
 // ensure convergence by only ever moving 1 vertex per neighborhood
