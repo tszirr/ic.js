@@ -78,7 +78,7 @@ while (maxStepSize - minStepSize > 1.0e-6 * maxStepSize && --maxSearchSteps != 0
 	computePinningGradient(currentNode.uv - duv1 - currentNode.pos.xy, currentNode.pinned, pe1);
 	computePinningGradient(currentNode.uv - duv2 - currentNode.pos.xy, currentNode.pinned, pe2);
 	e1 += pe1; e2 += pe2;
-	if (e1 < e2) maxStepSize = third2;
+	if (e1 <= e2) maxStepSize = third2;
 	else minStepSize = third1;
 }
 float stepSize = mix(minStepSize, maxStepSize, 0.5);

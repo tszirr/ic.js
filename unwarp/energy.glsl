@@ -90,8 +90,8 @@ bool onGlobalBorder(ivec2 c)
 #if 1
 
 vec2 computePinningGradient(vec2 duv, float pinned, out float energy) {
-	vec2 mobilityCoeff = 0.1 * pinned * vec2(resolution);
-	float mobilityEnergyCoeff = 1.0 / max(1.0 - lengthSquared(duv * mobilityCoeff), 0.0);
+	vec2 mobilityCoeff = pinned * vec2(resolution);
+	float mobilityEnergyCoeff = 1.0 / max(1.0 - lengthSquared(duv * mobilityCoeff), 0.5e-32);
 	energy = 0.5 * mobilityEnergyCoeff;
 	return mobilityEnergyCoeff * mobilityEnergyCoeff * (duv * mobilityCoeff * mobilityCoeff);
 }
