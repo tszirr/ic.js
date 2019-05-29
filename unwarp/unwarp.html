@@ -219,7 +219,10 @@
 				var fs = loadScript(document.getElementById(id));
 				if (main_id) {
 					var fsmain = loadScript(document.getElementById(main_id));
-					fs += '\nvoid main() {\n' + fsmain + '\n}';
+					if (fsmain.includes('main()'))
+						fs += '\n' + fsmain;
+					else
+						fs += '\nvoid main() {\n' + fsmain + '\n}';
 				}
 				var shader = {
 						uniforms: uniformMap,
@@ -280,7 +283,7 @@
 				return x;
 			}
 			function formatGLSL(x) {
-				x = x.replace(/(for|if|while|return|void|int|float|bool|struct|const|uniform|vec[1-4]|sampler.D)/g, '<span class="kw">$1</span>');
+				x = x.replace(/(for|if|while|return|void|int|float|bool|struct|const|uniform|(i|b)vec[1-4]|sampler.D)/g, '<span class="kw">$1</span>');
 				return formatComments(x);
 			}
 			function formatCXX(x) {
@@ -585,13 +588,23 @@
 					this[exampleName] = function() { var e = example; return function() { scope.loadExample(e); }; }();
 					this.exampleFolder.add(this, exampleName).name(example[1]);
 				}
-				this.showSource = function() {
-					printOutput(optMaterial.fragmentShader, formatGLSL);
+				function stripCodeView(str) {
+					var id = 'CODE VIEW:';
+					var i = str.indexOf(id);
+					return (i > 0) ? str.substr(i + id.length) : str;
+				}
+				this.showEnergySource = function() {
+					printOutput(stripCodeView(loadScript(document.getElementById('energy-shader'))).trim(), formatGLSL);
+				};
+				this.showOptimizeSource = function() {
+					printOutput(stripCodeView(loadScript(document.getElementById('correct-shader'))).trim(), formatGLSL);
 				};
 				this.showRenderSource = function() {
-					printOutput(document.getElementById('indirect-map-shader-chunk').innerText, formatGLSL);
+					var code = document.getElementById('indirect-map-shader-chunk').innerText.match(/^.*vec4 texelColor.*$/gm)[0].trim();
+					printOutput("\nIndirect fetch of color / albedo:\n\n    " + code + "\n\n", formatGLSL);
 				};
-				this.ui.add(this, 'showSource').name('Show Optimization Source');
+				this.ui.add(this, 'showEnergySource').name('Show Energy Source');
+				this.ui.add(this, 'showOptimizeSource').name('Show Optimization Source');
 				this.ui.add(this, 'showRenderSource').name('Show Source for Renderer');
 
 				infoText('documents processed');

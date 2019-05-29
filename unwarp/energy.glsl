@@ -12,14 +12,14 @@ uniform int iterationIdx;
 
 out vec4 newCorrectionOffset;
 
+float lengthSquared(vec2 x) { return dot(x,x); }
+
+// CODE VIEW:
 float areaPreservePow(float x) { return x * x * x; }
 float areaPreservePowDeriv(float x) { return 3.0 * x * x; }
 
-float lengthSquared(vec2 x) { return dot(x,x); }
-
 vec2 computeGradient(vec3 dnpos1, vec3 dnpos2,
-	vec2 dnuv1, vec2 dnuv2, out float energy)
-{
+	vec2 dnuv1, vec2 dnuv2, out float energy) {
 	float adpos = length(cross(dnpos1, dnpos2));
 	float aduv = dnuv1.x * dnuv2.y - dnuv2.x * dnuv1.y;
 
@@ -49,45 +49,11 @@ vec2 computeGradient(vec3 dnpos1, vec3 dnpos2,
 }
 
 float computeEnergy(vec3 dnpos1, vec3 dnpos2
-	, vec2 dnuv1, vec2 dnuv2)
-{
+	, vec2 dnuv1, vec2 dnuv2) {
 	float energy;
 	computeGradient(dnpos1, dnpos2, dnuv1, dnuv2, energy);
 	return energy;
 }
-
-float mixExp(float a, float b, float s) {
-	return pow(a, 1.0 - s) * pow(b, s);
-}
-vec2 mixExp(vec2 a, vec2 b, float s) {
-	return pow(a, vec2(1.0 - s)) * pow(b, vec2(s));
-}
-
-struct Node {
-	vec3 pos;
-	vec2 uv;
-	vec2 uvo;
-	float pinned;
-};
-Node fetchNode(vec2 coord)
-{
-	Node n;
-	coord *= pixelWidth;
-	vec2 wrapCoord = fract(coord);
-	float height = textureLod(displaceTex, wrapCoord, 0.0).x;
-	n.pos = vec3(coord, displacementScale * height);
-	n.uvo = textureLod(correctionOffsetTex, wrapCoord, 0.0).xy;
-	n.pinned = fixInterval > 0.0 ? max(1.0 - abs(height - fixHeight) / fixInterval, 0.0) : 0.0; // textureLod(pinTex, wrapCoord, 0.0).x;
-	n.uv = n.uvo + coord;
-	return n;
-}
-
-bool onGlobalBorder(ivec2 c)
-{
-	return c.x == 0 || c.y == 0 || c.x == resolution.x - 1 || c.y == resolution.y - 1;
-}
-
-#if 1
 
 vec2 computePinningGradient(vec2 duv, float pinned, out float energy) {
 	vec2 mobilityCoeff = pinned * vec2(resolution);
@@ -96,13 +62,6 @@ vec2 computePinningGradient(vec2 duv, float pinned, out float energy) {
 	return mobilityEnergyCoeff * mobilityEnergyCoeff * (duv * mobilityCoeff * mobilityCoeff);
 }
 
-#else
-
-vec2 computePinningGradient(vec2 duv, float pinned, out float energy) {
-  float maxMobility = pinned > 0.0 ? min(0.01 / pinned, 1.0) : 1.0;
-	float mobilityEnergyCoeff = maxMobility / max(maxMobility * maxMobility - lengthSquared(duv), 0.0);
-	energy = 0.5 * maxMobility * mobilityEnergyCoeff;
-	return mobilityEnergyCoeff * mobilityEnergyCoeff * duv;
+bool onGlobalBorder(ivec2 c) {
+	return c.x == 0 || c.y == 0 || c.x == resolution.x - 1 || c.y == resolution.y - 1;
 }
-
-#endif
