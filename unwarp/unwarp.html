@@ -74,9 +74,9 @@
 			#tutorial-arrow {
 				position: absolute;
 				font-family: monospace;
-				right: 400px; top: 150px;
+				right: 400px; top: 325px;
 				z-index:5;
-				color: #cc0044;
+				color: #dd0033;
 				font-size: 100px;
 				font-weight: bolder;
 				display: none;
@@ -619,7 +619,7 @@
 					infoText('example processed, you can also load your own files!');
 				}
 				// nothing loaded yet
-				if (inputImages.length < 1)
+				if (!inputImages.displace)
 					document.getElementById('tutorial-arrow').style.display = 'block';
 			}
 			function tutorialAccepted() {
