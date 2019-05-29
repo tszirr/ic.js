@@ -1,16 +1,6 @@
 #version 300 es
 
-uniform sampler2D displaceTex, correctionOffsetTex;
 uniform ivec2 resolution; uniform vec2 pixelWidth;
-
-uniform float displacementScale;
-uniform float fixHeight;
-uniform float fixInterval;
-uniform bool fixBoundary;
-
-uniform int iterationIdx;
-
-out vec4 newCorrectionOffset;
 
 float lengthSquared(vec2 x) { return dot(x,x); }
 

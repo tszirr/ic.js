@@ -198,7 +198,7 @@
 
 		<script type="x-shader/x-fragment" id="indirect-map-shader-chunk">
 			#ifdef USE_MAP
-				vec4 texelColor = texture2D( map, vUv + texture2D( remap, vUv).xy );
+				vec4 texelColor = texture2D( map, vUv + texture2D( remap, vUv + remapOffset).xy );
 				texelColor = mapTexelToLinear( texelColor );
 				diffuseColor *= texelColor;
 			#endif
@@ -249,6 +249,7 @@
 				fixHeight: { value: 0.0 },
 				fixInterval: { value: 0.04 },
 				fixBoundary: { value: false },
+				texelOffset: { value: 0.5 },
 				iterationIdx: { value: 0 }
 			};
 			var visMaterial, visUniforms = {
@@ -259,7 +260,8 @@
 			};
 			var emptyMaterial, initMaterial, remapMaterial, remapUniforms = {
 				colorTex: { },
-				remapTex: { }
+				remapTex: { },
+				remapOffset: { },
 			};
 			var normalMaterial, normalUniforms = {
 				bumpMap: {},
@@ -496,16 +498,17 @@
 				this.uwFolder = this.ui.addFolder('Displacement');
 				this.uwFolder.open();
 				this.uwFolder.add(this, 'displacementScale', 0, .5, .01).name('Scale').listen();
-				this.uwFolder.add(this, 'unwarp').name('Unwarp').listen();
-				this.uwFolder.add(this, 'mipOffset', 0, 5, .1).name('Mip Offset').listen();
-				this.uwFolder.add(this, 'keepColorMip').name('No Color Mip').listen();
-				this.uwFolder.add(this, 'flat').name('Flat Shade').listen();
-				this.uwFolder.add(this, 'bumpmap').name('(Bump Fallback)').listen();
+				this.uwFolder.add(this, 'unwarp').name('Unwarp');
+				this.uwFolder.add(this, 'mipOffset', 0, 5, .1).name('Mip Offset');
+				this.uwFolder.add(this, 'keepColorMip').name('No Color Mip');
+				this.uwFolder.add(this, 'flat').name('Flat Shade');
+				this.uwFolder.add(this, 'bumpmap').name('(Bump Fallback)');
 				
 				this.gridMatched = false;
 				this.fixHeight = optUniforms.fixHeight.value;
 				this.fixInterval = optUniforms.fixInterval.value;
 				this.fixBoundary = optUniforms.fixBoundary.value;
+				this.halfPixelOffset = true;
 				this.iterationsPerFrame = 4;
 				this.paramFolder = this.ui.addFolder('Optimization');
 				this.paramFolder.open();
@@ -513,7 +516,8 @@
 				this.paramFolder.add(this, 'fixInterval', 0, .5, .01).name('Fixed Interval').listen();
 				this.paramFolder.add(this, 'fixBoundary').name('Fixed Boundary').listen();
 				this.paramFolder.add(this, 'gridMatched').name('Mesh Resolution').listen();
-				this.paramFolder.add(this, 'iterationsPerFrame', 0, 64, 1).name('(Iterations / Frame)').listen();
+				this.paramFolder.add(this, 'halfPixelOffset').name('Half Pixel Offset');
+				this.paramFolder.add(this, 'iterationsPerFrame', 0, 64, 1).name('(Iterations / Frame)');
 
 				var scope = this;
 
@@ -674,6 +678,7 @@
 				resetState |= trackedUpdate(optUniforms.fixInterval, gui.fixInterval);
 				resetState |= trackedUpdate(optUniforms.fixBoundary, gui.fixBoundary);
 				resetState |= trackedUpdate(prevState.gridMatched, gui.gridMatched);
+				resetState |= trackedUpdate(optUniforms.texelOffset, gui.halfPixelOffset ? 0.5 : 0.0);
 				sc3d.material.displacementScale = gui.displacementScale;
 				sc3d.material.bumpScale = gui.displacementScale;
 
@@ -821,7 +826,7 @@
 						setMipBias(inputImages.color.texture, gui.keepColorMip ? 0 : gui.mipOffset);
 					}
 				}
-				var refImage = inputImages.color ? inputImages.color : inputImages.displace;
+				var refImage = inputImages.color && false ? inputImages.color : inputImages.displace;
 				if (resetState) {
 					if (inputImages.displace) {
 						sc2d.displace.material.needsUpdate = !sc2d.displace.material.map;
@@ -866,6 +871,7 @@
 
 					remapUniforms.colorTex.value = inputImages.color.texture;
 					remapUniforms.remapTex.value = corr;
+					remapUniforms.remapOffset.value = new THREE.Vector2(optUniforms.texelOffset.value / corr.image.width, optUniforms.texelOffset.value / corr.image.height);
 					sc2d.displace.quad.material = visMaterial;
 					sc2d.remap.quad.material = remapMaterial;
 
@@ -873,10 +879,12 @@
 						// custom remapping material
 						if (!sc3d.material.remap) {
 							sc3d.material.remap = { value: corr };
+							sc3d.material.remapOffset = remapUniforms.remapOffset;
 							sc3d.material.onBeforeCompile = function(shader, renderer) {
 								shader.uniforms.remap = sc3d.material.remap;
+								shader.uniforms.remapOffset = sc3d.material.remapOffset;
 								shader.fragmentShader = shader.fragmentShader.replace('#include <map_pars_fragment>',
-									'#include <map_pars_fragment>\nuniform sampler2D remap;\n');
+									'#include <map_pars_fragment>\nuniform sampler2D remap;\nuniform vec2 remapOffset;\n');
 								shader.fragmentShader = shader.fragmentShader.replace('#include <map_fragment>',
 									document.getElementById('indirect-map-shader-chunk').innerText);
 							}

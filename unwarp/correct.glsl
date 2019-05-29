@@ -1,3 +1,17 @@
+uniform sampler2D displaceTex;
+uniform sampler2D correctionOffsetTex;
+
+uniform float displacementScale;
+uniform float fixHeight;
+uniform float fixInterval;
+uniform bool fixBoundary;
+uniform float texelOffset;
+
+uniform int iterationIdx;
+
+out vec4 newCorrectionOffset;
+
+// CODE VIEW:
 struct Node {
 	vec3 pos;
 	vec2 uv;
@@ -8,7 +22,7 @@ Node fetchNode(vec2 coord) {
 	Node n;
 	coord *= pixelWidth;
 	vec2 wrapCoord = fract(coord);
-	float height = textureLod(displaceTex, wrapCoord, 0.0).x;
+	float height = textureLod(displaceTex, wrapCoord - texelOffset * pixelWidth, 0.0).x;
 	n.pos = vec3(coord, displacementScale * height);
 	n.uvo = textureLod(correctionOffsetTex, wrapCoord, 0.0).xy;
 	n.pinned = fixInterval > 0.0 ? max(1.0 - abs(height - fixHeight) / fixInterval, 0.0) : 0.0; // textureLod(pinTex, wrapCoord, 0.0).x;
