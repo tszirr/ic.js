@@ -17,5 +17,5 @@ void main() {
     float heightY1 = texture(bumpMap, coord + dv).x * bumpScale;
 
     vec3 n = cross(vec3(du, heightX1-heightX0), vec3(dv, heightY1-heightY0));
-    fragColor = vec4(n, 1.0) * 0.5 + 0.5;
+    fragColor = vec4(n / n.z, 1.0) * 0.5 + 0.5;
 }

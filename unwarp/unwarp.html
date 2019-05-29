@@ -128,7 +128,7 @@
 			<a href="https://github.com/mrdoob/three.js/blob/dev/examples/js/loaders/EXRLoader.js" target="_blank" rel="noopener">EXRLoader.js</a>
 			<a href="http://nodeca.github.io/pako/" target="_blank" rel="noopener">pako.js</a></span>
 			- <a class="bright" href="https://cg.ivd.kit.edu/rwmc.php" target="_blank" rel="noopener">Textured Displacement Unwarping</a>
-			[ <span id="info-output"></span> ] <span id="print-indicator">Text<i></i> Viewer</span>
+			[ <span id="info-output"></span> <span id="info-perf"></span> ] <span id="print-indicator">Text<i></i> Viewer</span>
 			<pre id="print-output"></pre>
 		</div>
 
@@ -270,6 +270,9 @@
 			function infoText(infotext) {
 				document.getElementById( 'info-output' ).innerHTML = infotext;
 			}
+			function infoPerf(infotext) {
+				document.getElementById( 'info-perf' ).innerHTML = infotext;
+			}
 			function formatComments(x) {
 				x = x.replace(/(\/\/.*)/g, '<span class="cm">$1</span>');
 				x = x.replace(/(\/\*\s*?Permission is hereby granted[\s\S]*?\*\/)/gm, '<span class="lic">$1</span>');
@@ -323,7 +326,7 @@
 				sc2d.color = make2DQuad(sc2d.scene, -.75, .75, .24);
 				sc2d.displace = make2DQuad(sc2d.scene, -.75, .25, .24);
 				sc2d.correction = make2DQuad(sc2d.scene, -.75, -.25, .24);
-				sc2d.correction.material.color = new THREE.Color(200,200,0);
+				sc2d.correction.material.color = new THREE.Color(50,50,0);
 				sc2d.remap = make2DQuad(sc2d.scene, -.75, -.75, .24);
 				//
 				sc3d.scene = new THREE.Scene();
@@ -483,27 +486,31 @@
 				
 				this.displacementScale = optUniforms.displacementScale.value;
 				this.unwarp = true;
-				this.mipmapped = true;
+				this.mipOffset = 0;
+				this.keepColorMip = false;
 				this.bumpmap = false;
 				this.flat = false;
 				this.uwFolder = this.ui.addFolder('Displacement');
 				this.uwFolder.open();
 				this.uwFolder.add(this, 'displacementScale', 0, .5, .01).name('Scale').listen();
 				this.uwFolder.add(this, 'unwarp').name('Unwarp').listen();
-				this.uwFolder.add(this, 'mipmapped').listen();
-				this.uwFolder.add(this, 'bumpmap').listen();
-				this.uwFolder.add(this, 'flat').listen();
-
+				this.uwFolder.add(this, 'mipOffset', 0, 5, .1).name('Mip Offset').listen();
+				this.uwFolder.add(this, 'keepColorMip').name('No Color Mip').listen();
+				this.uwFolder.add(this, 'flat').name('Flat Shade').listen();
+				this.uwFolder.add(this, 'bumpmap').name('(Bump Fallback)').listen();
+				
 				this.gridMatched = false;
 				this.fixHeight = optUniforms.fixHeight.value;
 				this.fixInterval = optUniforms.fixInterval.value;
 				this.fixBoundary = optUniforms.fixBoundary.value;
+				this.iterationsPerFrame = 4;
 				this.paramFolder = this.ui.addFolder('Optimization');
 				this.paramFolder.open();
-				this.paramFolder.add(this, 'gridMatched').name('Match Grid Resolution').listen();
 				this.paramFolder.add(this, 'fixHeight', 0, .4, .01).name('Fixed Height').listen();
 				this.paramFolder.add(this, 'fixInterval', 0, .5, .01).name('Fixed Interval').listen();
 				this.paramFolder.add(this, 'fixBoundary').name('Fixed Boundary').listen();
+				this.paramFolder.add(this, 'gridMatched').name('Mesh Resolution').listen();
+				this.paramFolder.add(this, 'iterationsPerFrame', 0, 64, 1).name('(Iterations / Frame)').listen();
 
 				var scope = this;
 
@@ -550,7 +557,7 @@
 							setTimeout(function() {
 								outputArea.removeChild(a);
 								URL.revokeObjectURL(a.href);
-							}, 0); 
+							}, 0);
 						}
 					}
 					catch (err) {
@@ -606,6 +613,8 @@
 				document.getElementById('tutorial-arrow').style.display = 'none';
 			}
 			var prevTime = null;
+			var avgMS = 0, avgFrames = 0;
+			var prevState = { gridMatched: { value: gui.gridMatched } };
 			function animate() {
 				requestAnimationFrame( animate );
 				
@@ -614,6 +623,14 @@
 					prevTime = time;
 				var delta = ( time - prevTime ) / 1000;
 				
+				avgMS += (time - prevTime);
+				++avgFrames;
+				if (avgFrames > 32) {
+					infoPerf(Math.round(avgMS/avgFrames*10)/10 + ' ms/f');
+					avgMS = 0;
+					avgFrames = 0;
+				}
+
 				var aspectScreen = windowHalfY / windowHalfX;
 				sc3d.camera.aspect = windowHalfX / windowHalfY;
 				sc3d.camera.updateProjectionMatrix();
@@ -643,6 +660,7 @@
 				resetState |= trackedUpdate(optUniforms.fixHeight, gui.fixHeight);
 				resetState |= trackedUpdate(optUniforms.fixInterval, gui.fixInterval);
 				resetState |= trackedUpdate(optUniforms.fixBoundary, gui.fixBoundary);
+				resetState |= trackedUpdate(prevState.gridMatched, gui.gridMatched);
 				sc3d.material.displacementScale = gui.displacementScale;
 				sc3d.material.bumpScale = gui.displacementScale;
 
@@ -684,14 +702,14 @@
 					wasComplete = complete;
 				}
 			}
-			function outputFor(resX, resY) {
+			function outputFor(resX, resY, format = THREE.RGBAFormat, type = THREE.HalfFloatType) {
 				var parameters = {
-					format: THREE.RGBAFormat, // LuminanceAlphaFormat?
-					type: THREE.FloatType,
-					minFilter: THREE.LinearFilter,
+					format: format,
+					type: type,
+					minFilter: THREE.LinearMipMapLinearFilter,
 					wrapS: THREE.RepeatWrapping,
 					wrapT: THREE.RepeatWrapping,
-					
+					generateMipmaps: true,
 					depthBuffer: false,
 					stencilBuffer: false
 				};
@@ -714,7 +732,7 @@
 				}
 			}
 			function renderNormals(displaceTexture) {
-				normalTexture = updateOutputFor(displaceTexture, normalTexture);
+				normalTexture = updateOutputFor(displaceTexture, normalTexture, 0, 0, THREE.RGBFormat, THREE.UnsignedByteType);
 				normalUniforms.bumpMap.value = displaceTexture;
 				normalUniforms.bumpScale.value = gui.displacementScale;
 				scpp.quad.material = normalMaterial;
@@ -723,18 +741,38 @@
 				renderer.setRenderTarget(null);
 				return normalTexture.texture;
 			}
+			function outputForOptimization(displaceTexture, output) {
+				return updateOutputFor(displaceTexture, output, gui.gridMatched ? gridResolution : 0, gui.gridMatched ? gridResolution : 0, THREE.LuminanceAlpha);
+			}
 			function resetResult(displaceTexture) {
-				outputTexture = updateOutputFor(displaceTexture, outputTexture, gui.gridMatched ? gridResolution : 0, gui.gridMatched ? gridResolution : 0);
+				outputTexture = outputForOptimization(displaceTexture, outputTexture);
 				scpp.quad.material = initMaterial;
 				renderer.setRenderTarget(outputTexture);
 				renderer.render(scpp.scene, scpp.camera);
 				renderer.setRenderTarget(null);
 				return outputTexture.texture;
 			}
+			function setMipBias(texture, mipBias) {
+				var gl = renderer.context;
+				if (texture.mipBias != mipBias) {
+					var threeGlTex = renderer.properties.get(texture);
+					if (threeGlTex && threeGlTex.__webglTexture) {
+						renderer.state.bindTexture(gl.TEXTURE_2D, threeGlTex.__webglTexture);
+						gl.texParameterf(gl.TEXTURE_2D, gl.TEXTURE_MIN_LOD, mipBias);
+						renderer.state.bindTexture(gl.TEXTURE_2D, null);
+						texture.mipBias = mipBias;
+					}
+				}
+			}
+			function enableMip(texture, enable) {
+				texture.generateMipmaps = enable;
+				texture.minFilter = enable ? THREE.LinearMipMapLinearFilter : THREE.LinearFilter;
+			}
 			function continueOptimization(displaceTexture, iterations) {
 				if (!outputTexture) return;
-				for (var iter = 0; iter < 4 * iterations; ++iter) {
-					outputBuffer = updateOutputFor(displaceTexture, outputBuffer, gui.gridMatched ? gridResolution : 0, gui.gridMatched ? gridResolution : 0);
+				setMipBias(outputTexture.texture, 0);
+				for (var iter = 0, lastIter = 4 * iterations - 1; iter <= lastIter; ++iter) {
+					outputBuffer = outputForOptimization(displaceTexture, outputBuffer);
 
 					optUniforms.displaceTex.value = displaceTexture;
 					optUniforms.correctionOffsetTex.value = outputTexture.texture;
@@ -742,6 +780,7 @@
 					optUniforms.pixelWidth.value = new THREE.Vector2(1 / outputTexture.texture.image.width, 1 / outputTexture.texture.image.height);
 					
 					scpp.quad.material = optMaterial;
+					enableMip(outputBuffer.texture, iter == lastIter);
 					renderer.setRenderTarget(outputBuffer);
 					renderer.render(scpp.scene, scpp.camera);
 					optUniforms.iterationIdx.value += 1;
@@ -751,25 +790,10 @@
 					outputBuffer = ob;
 				}
 				renderer.setRenderTarget(null);
+				setMipBias(outputTexture.texture, gui.mipOffset);
 				return outputTexture.texture;
 			}
-/*			function setupAdjustmentsPass(resultTexture, gamma, flipY) {
-				var resultSize = new THREE.Vector2(resultTexture.image.width, resultTexture.image.height);
-				quad.material = passMaterial;
-				passUniforms.exposure.value = Math.pow(10, gui.exposure-1);
-				passUniforms.gamma.value = gamma;
-				passUniforms.picture.value = resultTexture;
-				passUniforms.size.value = resultSize;
-				passUniforms.offset.value = new THREE.Vector2(0, 0);
-				passUniforms.flipY.value = flipY;
-			}
-			function processResult(resultTexture, flipY) {
-				outputBuffer = updateOutputFor(resultTexture, outputBuffer);
-				setupAdjustmentsPass(resultTexture, 1.0, flipY);
-				renderer.render(scene, camera, outputBuffer, true);
-				return outputBuffer;
-			}
-*/			function render() {
+			function render() {
 				renderer.autoClear = true;
 				scpp.quad.material = emptyMaterial;
 				renderer.render(scpp.scene, scpp.camera);
@@ -778,12 +802,11 @@
 				if (inputImages.color) {
 					sc2d.color.material.needsUpdate = !sc2d.color.material.map;
 					sc2d.color.material.map = inputImages.color.texture;
-					if (sc2d.color.material.needsUpdate) {
-						console.log(inputImages.color.texture.encoding);
-						console.log(THREE.LinearEncoding);
-					}
 					sc3d.material.needsUpdate = !sc3d.material.map;
 					sc3d.material.map = inputImages.color.texture;
+					if (inputImages.color.texture) {
+						setMipBias(inputImages.color.texture, gui.keepColorMip ? 0 : gui.mipOffset);
+					}
 				}
 				if (resetState) {
 					if (inputImages.displace) {
@@ -823,13 +846,9 @@
 				}
 
 				if (inputImages.displace && inputImages.displace.texture) {
-					var corr = continueOptimization(inputImages.displace.texture, 8);
+					var corr = continueOptimization(inputImages.displace.texture, gui.iterationsPerFrame);
 					sc2d.correction.material.needsUpdate = !sc2d.correction.material.map;
 					sc2d.correction.material.map = corr;
-
-					var minFilter = gui.mipmapped ? THREE.LinearMipMapLinearFilter : THREE.LinearFilter;
-//					corr.needsUpdate = (corr.minFilter != minFilter);
-					corr.minFilter = minFilter;
 
 					remapUniforms.colorTex.value = inputImages.color.texture;
 					remapUniforms.remapTex.value = corr;
@@ -867,20 +886,7 @@
 				renderer.setViewport(0, 0, 2 * windowHalfX, 2 * windowHalfY);
 
 				renderer.gammaOutput = false;
-
-/*				var resultTexture = renderResult();
-				if (resultTexture) {
-					setupAdjustmentsPass(resultTexture, gui.gamma, gui.loadFlipped);
-					// center
-					passUniforms.offset.value = new THREE.Vector2(windowHalfX, windowHalfY).addScaledVector(passUniforms.size.value, -.5);
-					// move away from GUI
-					var halfGuiWidth = gui.ui.width / 1.85;
-					passUniforms.offset.value.x -= halfGuiWidth * Math.max(Math.min(2 - passUniforms.offset.value.x / halfGuiWidth, 1), 0);
-					passUniforms.offset.value.round(); // don't resample!
-
-					renderer.render(scene, camera);
-				}
-*/			}
+			}
 			animate();
 		</script>
 	</body>
