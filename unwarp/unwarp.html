@@ -347,7 +347,7 @@
 				sc3d.material.clearCoatRoughness = .3;
 				sc3d.material.normalMapType = THREE.ObjectSpaceNormalMap;
 				sc3d.material.displacementScale = sc3d.material.bumpScale = optUniforms.displacementScale.value;
-				sc3d.quad = new THREE.Mesh( new THREE.PlaneBufferGeometry( 1, 1, gridResolution, gridResolution ), sc3d.material );
+				sc3d.quad = new THREE.Mesh( new THREE.PlaneBufferGeometry( 1, 1, gridResolution-1, gridResolution-1 ), sc3d.material );
 				sc3d.quad.rotateX(-1.55);
 				sc3d.quad.frustumCulled = false;
 				sc3d.scene.add( sc3d.quad );
@@ -509,7 +509,7 @@
 				this.iterationsPerFrame = 4;
 				this.paramFolder = this.ui.addFolder('Optimization');
 				this.paramFolder.open();
-				this.paramFolder.add(this, 'fixHeight', 0, .4, .01).name('Fixed Height').listen();
+				this.paramFolder.add(this, 'fixHeight', 0, .9, .01).name('Fixed Height').listen();
 				this.paramFolder.add(this, 'fixInterval', 0, .5, .01).name('Fixed Interval').listen();
 				this.paramFolder.add(this, 'fixBoundary').name('Fixed Boundary').listen();
 				this.paramFolder.add(this, 'gridMatched').name('Mesh Resolution').listen();
@@ -757,8 +757,8 @@
 			function outputForOptimization(displaceTexture, output) {
 				return updateOutputFor(displaceTexture, output, gui.gridMatched ? gridResolution : 0, gui.gridMatched ? gridResolution : 0, THREE.LuminanceAlpha);
 			}
-			function resetResult(displaceTexture) {
-				outputTexture = outputForOptimization(displaceTexture, outputTexture);
+			function resetResult(refTexture) {
+				outputTexture = outputForOptimization(refTexture, outputTexture);
 				scpp.quad.material = initMaterial;
 				renderer.setRenderTarget(outputTexture);
 				renderer.render(scpp.scene, scpp.camera);
@@ -781,11 +781,11 @@
 				texture.generateMipmaps = enable;
 				texture.minFilter = enable ? THREE.LinearMipMapLinearFilter : THREE.LinearFilter;
 			}
-			function continueOptimization(displaceTexture, iterations) {
+			function continueOptimization(refTexture, displaceTexture, iterations) {
 				if (!outputTexture) return;
 				setMipBias(outputTexture.texture, 0);
 				for (var iter = 0, lastIter = 4 * iterations - 1; iter <= lastIter; ++iter) {
-					outputBuffer = outputForOptimization(displaceTexture, outputBuffer);
+					outputBuffer = outputForOptimization(refTexture, outputBuffer);
 
 					optUniforms.displaceTex.value = displaceTexture;
 					optUniforms.correctionOffsetTex.value = outputTexture.texture;
@@ -821,6 +821,7 @@
 						setMipBias(inputImages.color.texture, gui.keepColorMip ? 0 : gui.mipOffset);
 					}
 				}
+				var refImage = inputImages.color ? inputImages.color : inputImages.displace;
 				if (resetState) {
 					if (inputImages.displace) {
 						sc2d.displace.material.needsUpdate = !sc2d.displace.material.map;
@@ -830,8 +831,8 @@
 						sc3d.material.bumpMap = null;
 						sc3d.material.normalMap = null;
 
-						if (inputImages.displace.texture) {
-							resetResult(inputImages.displace.texture);
+						if (refImage && refImage.texture) {
+							resetResult(refImage.texture);
 							resetState = false;
 							optUniforms.iterationIdx.value = 0;
 						}
@@ -858,8 +859,8 @@
 					}
 				}
 
-				if (inputImages.displace && inputImages.displace.texture) {
-					var corr = continueOptimization(inputImages.displace.texture, gui.iterationsPerFrame);
+				if (refImage && refImage.texture && inputImages.displace && inputImages.displace.texture) {
+					var corr = continueOptimization(refImage.texture, inputImages.displace.texture, gui.iterationsPerFrame);
 					sc2d.correction.material.needsUpdate = !sc2d.correction.material.map;
 					sc2d.correction.material.map = corr;
 
