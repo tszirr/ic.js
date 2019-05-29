@@ -192,6 +192,7 @@
 		<script src="remap.fs" type="x-shader/x-fragment" id="remap-shader"></script>
 		<script src="normal.fs" type="x-shader/x-fragment" id="normal-shader"></script>
 		<script src="displacevis.fs" type="x-shader/x-fragment" id="displacement-vis-shader"></script>
+		<script src="offsetvis.fs" type="x-shader/x-fragment" id="offset-vis-shader"></script>
 		<script src="inituv.fs" type="x-shader/x-fragment" id="inituv-shader"></script>
 		<script src="energy.glsl" type="x-shader/x-fragment" id="energy-shader"></script>
 		<script src="correct.glsl" type="x-shader/x-fragment" id="correct-shader"></script>
@@ -262,6 +263,9 @@
 				colorTex: { },
 				remapTex: { },
 				remapOffset: { },
+			};
+			var ovisMaterial, ovisUniforms = {
+				offsetTex: remapUniforms.remapTex,
 			};
 			var normalMaterial, normalUniforms = {
 				bumpMap: {},
@@ -365,6 +369,7 @@
 				optMaterial = new THREE.ShaderMaterial( loadShader('energy-shader', optUniforms, 'correct-shader') );
 				initMaterial = new THREE.ShaderMaterial( loadShader('inituv-shader', {}) );
 				visMaterial = new THREE.ShaderMaterial( loadShader('displacement-vis-shader', visUniforms) );
+				ovisMaterial = new THREE.ShaderMaterial( loadShader('offset-vis-shader', ovisUniforms) );
 				remapMaterial = new THREE.ShaderMaterial( loadShader('remap-shader', remapUniforms) );
 				normalMaterial = new THREE.ShaderMaterial( loadShader('normal-shader', normalUniforms) );
 				//
@@ -873,6 +878,7 @@
 					remapUniforms.remapTex.value = corr;
 					remapUniforms.remapOffset.value = new THREE.Vector2(optUniforms.texelOffset.value / corr.image.width, optUniforms.texelOffset.value / corr.image.height);
 					sc2d.displace.quad.material = visMaterial;
+					sc2d.correction.quad.material = ovisMaterial;
 					sc2d.remap.quad.material = remapMaterial;
 
 					if (gui.unwarp) {
