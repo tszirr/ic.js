@@ -251,6 +251,7 @@
 				fixInterval: { value: 0.04 },
 				fixBoundary: { value: false },
 				texelOffset: { value: 0.5 },
+				areaPreservation: { value: 5.0 },
 				iterationIdx: { value: 0 }
 			};
 			var visMaterial, visUniforms = {
@@ -495,6 +496,7 @@
 				this.ui = new dat.GUI();
 				
 				this.displacementScale = optUniforms.displacementScale.value;
+				this.areaPreservation = optUniforms.areaPreservation.value;
 				this.unwarp = true;
 				this.mipOffset = 0;
 				this.keepColorMip = false;
@@ -503,6 +505,7 @@
 				this.uwFolder = this.ui.addFolder('Displacement');
 				this.uwFolder.open();
 				this.uwFolder.add(this, 'displacementScale', 0, .5, .01).name('Scale').listen();
+				this.uwFolder.add(this, 'areaPreservation', 0, 20.0, .01).name('Area Preserve').listen();
 				this.uwFolder.add(this, 'unwarp').name('Unwarp');
 				this.uwFolder.add(this, 'mipOffset', 0, 5, .1).name('Mip Offset');
 				this.uwFolder.add(this, 'keepColorMip').name('No Color Mip');
@@ -679,6 +682,7 @@
 					return c;
 				}
 				optUniforms.displacementScale.value = gui.displacementScale;
+				optUniforms.areaPreservation.value = gui.areaPreservation;
 				resetState |= trackedUpdate(optUniforms.fixHeight, gui.fixHeight);
 				resetState |= trackedUpdate(optUniforms.fixInterval, gui.fixInterval);
 				resetState |= trackedUpdate(optUniforms.fixBoundary, gui.fixBoundary);

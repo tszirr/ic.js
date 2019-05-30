@@ -2,11 +2,13 @@
 
 uniform ivec2 resolution; uniform vec2 pixelWidth;
 
+uniform float areaPreservation;
+
 float lengthSquared(vec2 x) { return dot(x,x); }
 
 // CODE VIEW:
-float areaPreservePow(float x) { return x * x * x; }
-float areaPreservePowDeriv(float x) { return 3.0 * x * x; }
+float areaPreservePow(float x) { return pow(x, areaPreservation); }
+float areaPreservePowDeriv(float x) { return areaPreservation * pow(x, areaPreservation - 1.0); }
 
 vec2 computeGradient(vec3 dnpos1, vec3 dnpos2,
 	vec2 dnuv1, vec2 dnuv2, out float energy) {
