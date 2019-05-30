@@ -127,7 +127,7 @@
 			<a href="http://threejs.org" target="_blank" rel="noopener">three.js</a>
 			<a href="https://github.com/mrdoob/three.js/blob/dev/examples/js/loaders/EXRLoader.js" target="_blank" rel="noopener">EXRLoader.js</a>
 			<a href="http://nodeca.github.io/pako/" target="_blank" rel="noopener">pako.js</a></span>
-			- <a class="bright" href="https://cg.ivd.kit.edu/rwmc.php" target="_blank" rel="noopener">Textured Displacement Unwarping</a>
+			- <a class="bright" href="https://github.com/tszirr/ic.js/tree/master/unwarp" target="_blank" rel="noopener">Textured Displacement Unwarping</a>
 			[ <span id="info-output"></span> <span id="info-perf"></span> ] <span id="print-indicator">Text<i></i> Viewer</span>
 			<pre id="print-output"></pre>
 		</div>
@@ -343,8 +343,17 @@
 				sc3d.camera = new THREE.PerspectiveCamera( 45, 1, .02, 20 );
 				sc3d.camera.position.set(.7, .5, .5);
 				sc3d.camera.lookAt(-.5,-.15,-.5);
+				sc3d.camera.position.set(.4, .4, .6);
+				sc3d.camera.lookAt(0,-.08,-0.05);
+				var wall = false;
+				if (wall) {
+					sc3d.camera.position.set(.1, 0, .7);
+					sc3d.camera.lookAt(0,0,0);
+				}
 				sc3d.sun = new THREE.DirectionalLight( 0xffffff, 1.5 );
-				sc3d.sun.position.set(1,3,1);
+				sc3d.sun.position.set(1,.8,0);
+				if (wall)
+					sc3d.sun.position.set(1,0,8);
 				sc3d.scene.add( sc3d.sun );
 				sc3d.material = new THREE.MeshPhysicalMaterial();
 				sc3d.material.metalness = .1;
@@ -354,8 +363,9 @@
 				sc3d.material.clearCoatRoughness = .3;
 				sc3d.material.normalMapType = THREE.ObjectSpaceNormalMap;
 				sc3d.material.displacementScale = sc3d.material.bumpScale = optUniforms.displacementScale.value;
-				sc3d.quad = new THREE.Mesh( new THREE.PlaneBufferGeometry( 1, 1, gridResolution-1, gridResolution-1 ), sc3d.material );
-				sc3d.quad.rotateX(-1.55);
+				sc3d.quad = new THREE.Mesh( new THREE.PlaneBufferGeometry( wall ? 1.3 : 1, 1, gridResolution-1, gridResolution-1 ), sc3d.material );
+				if (!wall)
+					sc3d.quad.rotateX(-1.55);
 				sc3d.quad.frustumCulled = false;
 				sc3d.scene.add( sc3d.quad );
 				//
@@ -619,6 +629,13 @@
 				this.ui.add(this, 'showOptimizeSource').name('Show Optimization Source');
 				this.ui.add(this, 'showRenderSource').name('Show Source for Renderer');
 
+				this.background = true;
+				this.paperFolder = this.ui.addFolder('Paper');
+				//this.paperFolder.open();
+				this.paperFolder.add(this, 'background').name('Background');
+				this.paperFolder.add(sc3d.material, 'clearCoat').name('Clear Coat');
+				this.paperFolder.add(sc3d.sun.position, 'y').name('Sun Height');
+
 				infoText('documents processed');
 			}
 			function tutorial() {
@@ -821,9 +838,15 @@
 				return outputTexture.texture;
 			}
 			function render() {
-				renderer.autoClear = true;
-				scpp.quad.material = emptyMaterial;
-				renderer.render(scpp.scene, scpp.camera);
+				if (gui.background) {
+					renderer.autoClear = true;
+					scpp.quad.material = emptyMaterial;
+					renderer.render(scpp.scene, scpp.camera);
+				}
+				else {
+					renderer.setClearColor( new THREE.Color(0xffffff), 1.0 );
+					renderer.clear();
+				}
 				renderer.autoClear = false;
 
 				if (inputImages.color) {
