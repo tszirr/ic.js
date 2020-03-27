@@ -426,8 +426,31 @@
 				}
 				acceptInputs(newInputs);
 			}
+			// Fix / change dat gui slider behavior
+			function initDatGUI() {
+				var intrusiveUpdateDisplay = dat.controllers.NumberControllerBox.prototype.updateDisplay;
+				dat.controllers.NumberControllerBox.prototype.updateDisplay = function() {
+					if (this.__input === document.activeElement)
+						return this;
+					return intrusiveUpdateDisplay.call(this);
+				};
+				var boundedSetValue = dat.controllers.NumberController.prototype.setValue;
+				dat.controllers.NumberController.prototype.setValue = function(v) {
+					if (!this.domElement.nextElementSibling)
+						return boundedSetValue.call(this, v);
+					var min = this.__min;
+					this.__min = undefined;
+					var max = this.__max;
+					this.__max = undefined;
+					var ret = boundedSetValue.call(this, v);
+					this.__min = min;
+					this.__max = max;
+					return ret;
+				};
+			}
 			function UiParameters() {
 				this.ui = new dat.GUI();
+				initDatGUI();
 				
 				this.kappa = 32;
 				this.rwFolder = this.ui.addFolder('Reweighting');
@@ -445,7 +468,7 @@
 				this.cascadeBase = defaultCascadeBase;
 				this.cascadeStart = 1;
 				var inputDataFolder = this.ui.addFolder('Input Description');
-				inputDataFolder.add(this, 'spp', 32, 4096).listen();
+				inputDataFolder.add(this, 'spp', 32, 2048).listen();
 				inputDataFolder.add(this, 'cascadeBase', 1, 8).listen();
 				inputDataFolder.add(this, 'cascadeStart', .125, 4).listen();
 
