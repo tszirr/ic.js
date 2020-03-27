@@ -136,6 +136,12 @@
 			Load something ><div>(Examples or your own)</div>
 		</div>
 
+		<script>
+			// no need to run UI in actual real-time
+			window.requestAnimationFrame = function(f) {
+				window.setTimeout(f, 400);
+			};
+		</script>
 		<script src="three.min.js"></script>
 		<script src="dat.gui.min.js"></script>
 		
