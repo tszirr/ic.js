@@ -23,13 +23,14 @@ CascadeSlice getCascadeSliceForSampleLuminance(float luminance) {
     int baseIndex = 0;
 
     /* find adjacent layers in cascade for <luminance> */
-    for ( ; !(luminance < upperScale) && baseIndex < cascadeBufferCount - 1; ++baseIndex) {
+    while (!(luminance < upperScale) && baseIndex < cascadeBufferCount - 2) {
         lowerScale = upperScale;
         upperScale *= cascadeBase;
+        ++baseIndex;
     }
 
     // buffers are (<baseIndex>, <baseIndex>+1)
-    CascadeSlice slice = { cascadeBuffers[baseIndex], cascadeBuffers[baseIndex+1] };
+    CascadeSlice slice = { &cascadeBuffers[baseIndex], &cascadeBuffers[baseIndex+1] };
 
     /* weight for lower buffer */
     if (luminance <= lowerScale)
