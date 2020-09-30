@@ -1,5 +1,10 @@
 # ic.js/rw - Reweighting Firefly Samples for Improved Finite-Sample Monte Carlo Estimates
 
+[![Online Tool](https://cg.ivd.kit.edu/publications/2018/rwmc/tool.jpg)](https://cg.ivd.kit.edu/publications/2018/rwmc/tool/rw.html)
+[![Example for the bathroom scene](https://cg.ivd.kit.edu/publications/2018/rwmc/bathroom.jpg)](https://cg.ivd.kit.edu/publications/2018/rwmc/tool/rw.html?example=bathroom)
+[![Example for the flashlight scene](https://cg.ivd.kit.edu/publications/2018/rwmc/flashlight.jpg)](https://cg.ivd.kit.edu/publications/2018/rwmc/tool/rw.html?example=flashlight)
+[![Example for the torus scene](https://cg.ivd.kit.edu/publications/2018/rwmc/torus.jpg)](https://cg.ivd.kit.edu/publications/2018/rwmc/tool/rw.html?example=torus)
+
 An implementation of the Monte Carlo Outlier / "Firefly" Handling
 technique by re-weighting of framebuffer cascades, as described in
 the paper
