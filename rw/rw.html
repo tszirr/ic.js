@@ -217,6 +217,7 @@
 
 		<script src="fullscreen.vs" type="x-shader/x-vertex" id="vertex-shader"></script>
 		<script src="reweight.fs" type="x-shader/x-fragment" id="reweighting-shader"></script>
+		<script src="reweight-cheap.fs" type="x-shader/x-fragment" id="cheap-reweighting-shader"></script>
 		<script src="passpart.fs" type="x-shader/x-fragment" id="passpart-shader"></script>
 		<script src="empty.fs" type="x-shader/x-fragment" id="empty-shader"></script>
 
@@ -245,7 +246,7 @@
 			var renderer, scene, camera, quad;
 			var inputImages = [];
 			var outputTexture, outputBuffer;
-			var rwMaterial, rwUniforms = {
+			var rwMaterial, rwCheapMaterial, rwUniforms = {
 				cropOffset: { },
 				size: { },
 				picture: { },
@@ -315,6 +316,7 @@
 				scene.add( quad );
 				//
 				rwMaterial = new THREE.ShaderMaterial( loadShader('reweighting-shader', rwUniforms) );
+				rwCheapMaterial = new THREE.ShaderMaterial( loadShader('cheap-reweighting-shader', rwUniforms) );
 				emptyMaterial = new THREE.ShaderMaterial( loadShader('empty-shader', {}) );
 				passMaterial = new THREE.ShaderMaterial( loadShader('passpart-shader', passUniforms) );
 				//
@@ -459,9 +461,11 @@
 				initDatGUI();
 				
 				this.kappa = 32;
+				this.cheap = false
 				this.rwFolder = this.ui.addFolder('Reweighting');
 				this.rwFolder.open();
 				this.rwFolder.add(this, 'kappa', 1.e-9, 128).name('K ("min spp")').listen();
+				this.rwFolder.add(this, 'cheap');
 
 				this.exposure = 1;
 				this.gamma = passUniforms.gamma.value;
@@ -696,6 +700,32 @@
 					}
 
 					resultTexture = outputTexture.texture;
+					resultSize = outputSize;
+				}
+				else if (resultTexture && gui.cheap) {
+					outputBuffer = updateOutputFor(resultTexture, outputBuffer);
+					outputSize = resultSize.clone();
+
+					quad.material = rwCheapMaterial;
+					{
+						var inputSize = new THREE.Vector2(resultTexture.image.width, resultTexture.image.height);
+						rwUniforms.cropOffset.value = outputSize.clone().sub(inputSize).multiplyScalar(.5);
+						rwUniforms.cropOffset.value.round(); // don't resample!
+						rwUniforms.size.value = inputSize;
+						rwUniforms.picture.value = null;
+						rwUniforms.hasPicture.value = false;
+						rwUniforms.hasMore.value = false;
+						rwUniforms.prev.value = null;
+						rwUniforms.curr.value = resultTexture;
+						rwUniforms.next.value = null;
+						rwUniforms.oneOverK.value = 1 / gui.kappa;
+						rwUniforms.currScale.value = gui.spp / gui.kappa;
+						rwUniforms.cascadeBase.value = gui.cascadeStart;
+
+						renderer.render(scene, camera, outputBuffer, true);
+					}
+
+					resultTexture = outputBuffer.texture;
 					resultSize = outputSize;
 				}
 
