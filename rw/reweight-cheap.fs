@@ -1,28 +1,31 @@
 uniform vec2 cropOffset;
 uniform vec2 size;
 
+uniform bool hasMore;      // more higher layers in the cascade
+
 uniform sampler2D curr; // current layer in the cascade
+uniform sampler2D next; // higher layer in the cascade
 
 uniform float oneOverK;    // 1/kappa
 uniform float currScale;   // N/kappa
 uniform float cascadeBase; // lowest level brightness
 
 #define LUMINANCE_NRM vec3(0.212671, 0.715160, 0.072169)
-float luminance(vec4 c) {
+float luminance(vec3 c) {
 	// match what you have in the renderer
-	return dot(c.xyz, LUMINANCE_NRM);
+	return dot(c, LUMINANCE_NRM);
 	// e.g. also possible: return max(max(c.x, c.y), c.z);
 }
 
 // average of <r>-radius pixel block in <layer> at <coord> (only using r=0 and r=1)
-float sampleLayer(sampler2D layer, vec2 coord, vec2 size, const int r, float scale) {
-	float val = 0.0;
+vec3 sampleReliability(vec2 coord, vec2 size, const int r) {
+	vec3 val = vec3(0.0);
 	int y = -r;
 	for (int i = 0; i < 3; ++i) { // WebGL requires static loops
 		int x = -r;
 		for (int j = 0; j < 3; ++j) { // WebGL requires static loops
-			float c = texture2D(layer, (coord + vec2(x, y)) / size, 0.).a;
-			c *= scale;
+            vec2 cc = (coord + vec2(x, y)) / size;
+			vec3 c = hasMore ? texture2D(next, cc, 0.).rgb : texture2D(curr, cc, 0.).aaa;
 			val += c;
 			if (++x > r) break;
 		}
@@ -47,16 +50,18 @@ void main() {
 	/* sample counting-based reliability estimation */
 
 	// reliability in 3x3 pixel block (see robustness)
-	float globalReliability = sampleLayer(curr, gl_FragCoord.xy, size, 1, currScale);
+	vec3 globalReliability = sampleReliability(gl_FragCoord.xy, size, 1);
 	// reliability of curent pixel
-	float localReliability = sampleLayer(curr, gl_FragCoord.xy, size, 0, currScale);
+	vec3 localReliability = sampleReliability(gl_FragCoord.xy, size, 0);
 
-    float fittingCoeff = globalReliability / currScale
-        / mapping(currScale * inverse_mapping(globalReliability / currScale));
+    float fittingCoeff = max(luminance(globalReliability), 1.0)
+        / mapping(currScale * max(1.0, inverse_mapping( luminance(globalReliability))));
 
-	float reliability = fittingCoeff * min(globalReliability, localReliability);
-    if (reliability > 1.0)
-        reliability = exp(reliability - 1.0);
+	vec3 reliability = fittingCoeff * currScale * min(globalReliability, localReliability);
+    float reliabilityLum = luminance(reliability);
+    if (reliabilityLum > 1.0) {
+        reliability *= inverse_mapping(reliabilityLum) / reliabilityLum;
+    }
     reliability *= cascadeBase;
 
 //    gl_FragColor.rgb = vec3(reliability);
@@ -64,8 +69,9 @@ void main() {
 	
 	// allow re-weighting to be disabled esily for the viewer demo
 	if (oneOverK < 1.e6) {
-        gl_FragColor.rgb = vec3(luminance(gl_FragColor));
-        gl_FragColor.rgb = min(gl_FragColor.rgb, reliability); // todo: rescale components
+        if (!hasMore)
+            gl_FragColor.rgb = vec3( luminance(gl_FragColor.rgb) );
+        gl_FragColor.rgb = min(gl_FragColor.rgb, reliability);
     }
 }
 

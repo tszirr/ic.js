@@ -661,7 +661,7 @@
 					--imagesMissing;
 				}
 				// re-weighting stack
-				if (resultTexture && inputImages.length > 1) {
+				if (resultTexture && inputImages.length > 1 && !gui.cheap) {
 					outputTexture = updateOutputFor(resultTexture, outputTexture);
 					outputBuffer = updateOutputFor(resultTexture, outputBuffer);
 					outputSize = resultSize.clone();
@@ -714,10 +714,10 @@
 						rwUniforms.size.value = inputSize;
 						rwUniforms.picture.value = null;
 						rwUniforms.hasPicture.value = false;
-						rwUniforms.hasMore.value = false;
+						rwUniforms.hasMore.value = (1 < inputImages.length);
 						rwUniforms.prev.value = null;
 						rwUniforms.curr.value = resultTexture;
-						rwUniforms.next.value = null;
+						rwUniforms.next.value = (1 < inputImages.length ? inputImages[1].texture : null);
 						rwUniforms.oneOverK.value = 1 / gui.kappa;
 						rwUniforms.currScale.value = gui.spp / gui.kappa;
 						rwUniforms.cascadeBase.value = gui.cascadeStart;
