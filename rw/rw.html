@@ -382,8 +382,11 @@
 						gui.spp = inputImages[0].spp;
 						console.log('detected ' + gui.spp + 'spp');
 					}
-					if (inputImages.length > 1)
+					if (inputImages.length > 1 || gui.cheap) {
+						if (inputImages.length == 2)
+							gui.cheap = true;
 						gui.rwFolder.open();
+					}
 					else
 						gui.rwFolder.close();
 					// document
@@ -465,7 +468,7 @@
 				this.rwFolder = this.ui.addFolder('Reweighting');
 				this.rwFolder.open();
 				this.rwFolder.add(this, 'kappa', 1.e-9, 128).name('K ("min spp")').listen();
-				this.rwFolder.add(this, 'cheap');
+				this.rwFolder.add(this, 'cheap').listen();
 
 				this.exposure = 1;
 				this.gamma = passUniforms.gamma.value;
