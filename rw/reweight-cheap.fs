@@ -60,13 +60,19 @@ void main() {
 	// reliability of curent pixel
 	vec3 localReliability = sampleReliability(gl_FragCoord.xy, size, 0);
 
-	vec3 fittingEstimate = max(inverse_mapping(globalReliability), vec3(1.0));
-    vec3 fittingCoeff = mapping(fittingEstimate)
-        / mapping(currScale * fittingEstimate);
+	vec3 reliability = globalReliability;
+	/*if (reliability > 0.0)*/ {
+		//vec3 fittingEstimate = max(inverse_mapping(reliability), vec3(1.0));
+		//vec3 fittingCoeff = mapping(fittingEstimate)
+		//    / mapping(currScale * fittingEstimate);
+		vec3 warpedDev = mapping(gl_FragColor.xyz - inverse_mapping(reliability));
+		vec3 fittingCoeff = reliability / max(warpedDev, reliability + 0.00001);
+		fittingCoeff = max(fittingCoeff, sqrt(1.0 / currScale));
 
-	vec3 reliability = currScale * fittingCoeff * min(globalReliability, localReliability);
-    reliability = inverse_mapping(reliability);
-    reliability *= cascadeBase;
+		reliability = currScale * fittingCoeff * min(globalReliability, localReliability);
+		reliability = inverse_mapping(reliability);
+		reliability *= cascadeBase;
+	}
 
 //    gl_FragColor.rgb = vec3(reliability);
 //    return;
