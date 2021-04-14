@@ -34,11 +34,17 @@ vec3 sampleReliability(vec2 coord, vec2 size, const int r) {
 	return val / float((2*r+1)*(2*r+1));
 }
 
-float mapping(float x) {
-    return x > 1.0 ? 1.0 + log(x) : x;
+vec3 mapping(vec3 x) {
+	for (int i = 0; i < 3; ++i)
+		if (x[i] > 1.0)
+			x = 1.0 + log(x);
+	return x;
 }
-float inverse_mapping(float x) {
-    return x > 1.0 ? exp(x - 1.0) : x;
+vec3 inverse_mapping(vec3 x) {
+    for (int i = 0; i < 3; ++i)
+		if (x[i] > 1.0)
+			x = exp(x - 1.0);
+	return x;
 }
 
 void main() {
@@ -54,14 +60,12 @@ void main() {
 	// reliability of curent pixel
 	vec3 localReliability = sampleReliability(gl_FragCoord.xy, size, 0);
 
-    float fittingCoeff = max(luminance(globalReliability), 1.0)
-        / mapping(currScale * max(1.0, inverse_mapping( luminance(globalReliability))));
+	vec3 fittingEstimate = max(inverse_mapping(globalReliability), vec3(1.0));
+    vec3 fittingCoeff = mapping(fittingEstimate)
+        / mapping(currScale * fittingEstimate);
 
-	vec3 reliability = fittingCoeff * currScale * min(globalReliability, localReliability);
-    float reliabilityLum = luminance(reliability);
-    if (reliabilityLum > 1.0) {
-        reliability *= inverse_mapping(reliabilityLum) / reliabilityLum;
-    }
+	vec3 reliability = currScale * fittingCoeff * min(globalReliability, localReliability);
+    reliability = inverse_mapping(reliability);
     reliability *= cascadeBase;
 
 //    gl_FragColor.rgb = vec3(reliability);
