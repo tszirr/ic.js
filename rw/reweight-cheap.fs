@@ -65,7 +65,7 @@ void main() {
 		//vec3 fittingEstimate = max(inverse_mapping(reliability), vec3(1.0));
 		//vec3 fittingCoeff = mapping(fittingEstimate)
 		//    / mapping(currScale * fittingEstimate);
-		vec3 warpedDev = mapping(gl_FragColor.xyz - inverse_mapping(reliability));
+		vec3 warpedDev = mapping(gl_FragColor.xyz / cascadeBase - inverse_mapping(reliability));
 		vec3 fittingCoeff = reliability / max(warpedDev, reliability + 0.00001);
 		fittingCoeff = max(fittingCoeff, sqrt(1.0 / currScale));
 
