@@ -47,6 +47,13 @@ vec3 inverse_mapping(vec3 x) {
 	return x;
 }
 
+float minComponent(vec3 x) {
+	return min(min(x.x, x.y), x.z);
+}
+float maxComponent(vec3 x) {
+	return max(max(x.x, x.y), x.z);
+}
+
 void main() {
 	vec2 c = gl_FragCoord.xy - cropOffset;
 
@@ -65,12 +72,34 @@ void main() {
 		//vec3 fittingEstimate = max(inverse_mapping(reliability), vec3(1.0));
 		//vec3 fittingCoeff = mapping(fittingEstimate)
 		//    / mapping(currScale * fittingEstimate);
-		vec3 warpedDev = mapping(gl_FragColor.xyz / cascadeBase - inverse_mapping(reliability));
+		vec3 clampedColor = inverse_mapping(reliability);
+		vec3 warpedDev = mapping(gl_FragColor.xyz / cascadeBase - clampedColor);
 		vec3 fittingCoeff = reliability / max(warpedDev, reliability + 0.00001);
 		fittingCoeff = max(fittingCoeff, sqrt(1.0 / currScale));
 
 		reliability = currScale * fittingCoeff * min(globalReliability, localReliability);
 		reliability = inverse_mapping(reliability);
+
+		// color correction
+		float colorBase = minComponent(reliability);
+		float colorSpan = maxComponent(reliability) - colorBase;
+		if (colorSpan > 0.001) {
+			float satc = 1.0 - minComponent(clampedColor) / maxComponent(clampedColor);
+			if (1.0 - satc > 0.001) {
+				float maxCorrection = (satc * colorBase) / (colorSpan * (1.0 - satc));
+				if (maxCorrection < 1.0) {
+					if (true)
+						reliability = maxCorrection * (reliability - vec3(colorBase)) + vec3(colorBase);
+					else {
+						float correction = satc * (colorSpan * maxCorrection + colorBase);
+						//correction /= (reliability - vec3(colorBase));
+						//reliability = correction * (reliability - vec3(colorBase)) + vec3(colorBase);
+						reliability = min(reliability, vec3(correction + colorBase));
+					}
+				}
+			}
+		}
+
 		reliability *= cascadeBase;
 	}
 
