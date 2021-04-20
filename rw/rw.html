@@ -258,6 +258,7 @@
 				oneOverK: { },
 				currScale: { },
 				cascadeBase: { },
+				colorCorrection: { },
 			};
 			var emptyMaterial, passMaterial, passUniforms = {
 				offset: { },
@@ -465,10 +466,12 @@
 				
 				this.kappa = 32;
 				this.cheap = false
+				this.colorCorrection = false
 				this.rwFolder = this.ui.addFolder('Reweighting');
 				this.rwFolder.open();
 				this.rwFolder.add(this, 'kappa', 1.e-9, 128).name('K ("min spp")').listen();
 				this.rwFolder.add(this, 'cheap').listen();
+				this.rwFolder.add(this, 'colorCorrection');
 
 				this.exposure = 1;
 				this.gamma = passUniforms.gamma.value;
@@ -724,6 +727,7 @@
 						rwUniforms.oneOverK.value = 1 / gui.kappa;
 						rwUniforms.currScale.value = gui.spp / gui.kappa;
 						rwUniforms.cascadeBase.value = gui.cascadeStart;
+						rwUniforms.colorCorrection.value = gui.colorCorrection;
 
 						renderer.render(scene, camera, outputBuffer, true);
 					}

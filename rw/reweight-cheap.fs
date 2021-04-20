@@ -10,6 +10,8 @@ uniform float oneOverK;    // 1/kappa
 uniform float currScale;   // N/kappa
 uniform float cascadeBase; // lowest level brightness
 
+uniform bool colorCorrection;
+
 #define LUMINANCE_NRM vec3(0.212671, 0.715160, 0.072169)
 float luminance(vec3 c) {
 	// match what you have in the renderer
@@ -72,34 +74,12 @@ void main() {
 		//vec3 fittingEstimate = max(inverse_mapping(reliability), vec3(1.0));
 		//vec3 fittingCoeff = mapping(fittingEstimate)
 		//    / mapping(currScale * fittingEstimate);
-		vec3 clampedColor = inverse_mapping(reliability);
-		vec3 warpedDev = mapping(gl_FragColor.xyz / cascadeBase - clampedColor);
+		vec3 warpedDev = mapping(gl_FragColor.xyz / cascadeBase - inverse_mapping(reliability));
 		vec3 fittingCoeff = reliability / max(warpedDev, reliability + 0.00001);
 		fittingCoeff = max(fittingCoeff, sqrt(1.0 / currScale));
 
 		reliability = currScale * fittingCoeff * min(globalReliability, localReliability);
 		reliability = inverse_mapping(reliability);
-
-		// color correction
-		float colorBase = minComponent(reliability);
-		float colorSpan = maxComponent(reliability) - colorBase;
-		if (colorSpan > 0.001) {
-			float satc = 1.0 - minComponent(clampedColor) / maxComponent(clampedColor);
-			if (1.0 - satc > 0.001) {
-				float maxCorrection = (satc * colorBase) / (colorSpan * (1.0 - satc));
-				if (maxCorrection < 1.0) {
-					if (true)
-						reliability = maxCorrection * (reliability - vec3(colorBase)) + vec3(colorBase);
-					else {
-						float correction = satc * (colorSpan * maxCorrection + colorBase);
-						//correction /= (reliability - vec3(colorBase));
-						//reliability = correction * (reliability - vec3(colorBase)) + vec3(colorBase);
-						reliability = min(reliability, vec3(correction + colorBase));
-					}
-				}
-			}
-		}
-
 		reliability *= cascadeBase;
 	}
 
@@ -111,6 +91,31 @@ void main() {
         if (!hasMore)
             gl_FragColor.rgb = vec3( luminance(gl_FragColor.rgb) );
         vec3 clamped = min(gl_FragColor.rgb, reliability);
+
+		// color correction
+		float colorBase = minComponent(clamped);
+		float colorSpan = maxComponent(clamped) - colorBase;
+		if (colorCorrection && colorSpan > 0.001) {
+			vec3 clampingColor = inverse_mapping(localReliability);
+			float satc = 1.0 - minComponent(clampingColor) / maxComponent(clampingColor);
+			// note: this leads to quite a bit of color variance!
+			float sato = 1.0 - minComponent(gl_FragColor.rgb) / maxComponent(gl_FragColor.rgb);
+			satc = max(satc, sato);
+			if (1.0 - satc > 0.001) {
+				float maxCorrection = (satc * colorBase) / (colorSpan * (1.0 - satc));
+				if (maxCorrection < 1.0) {
+					if (true)
+						clamped = maxCorrection * (clamped - vec3(colorBase)) + vec3(colorBase);
+					else {
+						float correction = satc * (colorSpan * maxCorrection + colorBase);
+						//correction /= (clamped - vec3(colorBase));
+						//clamped = correction * (clamped - vec3(colorBase)) + vec3(colorBase);
+						clamped = min(clamped, vec3(correction + colorBase));
+					}
+				}
+			}
+		}
+
 		gl_FragColor.rgb = 2.0 * gl_FragColor.rgb / (gl_FragColor.rgb / clamped + 1.0);
 		//gl_FragColor.rgb = inverse_mapping( 2.0 * mapping(gl_FragColor.rgb) / (mapping(gl_FragColor.rgb) / mapping(clamped) + 1.0) );
     }
