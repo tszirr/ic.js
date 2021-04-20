@@ -110,7 +110,9 @@ void main() {
 	if (oneOverK < 1.e6) {
         if (!hasMore)
             gl_FragColor.rgb = vec3( luminance(gl_FragColor.rgb) );
-        gl_FragColor.rgb = min(gl_FragColor.rgb, reliability);
+        vec3 clamped = min(gl_FragColor.rgb, reliability);
+		gl_FragColor.rgb = 2.0 * gl_FragColor.rgb / (gl_FragColor.rgb / clamped + 1.0);
+		//gl_FragColor.rgb = inverse_mapping( 2.0 * mapping(gl_FragColor.rgb) / (mapping(gl_FragColor.rgb) / mapping(clamped) + 1.0) );
     }
 }
 
